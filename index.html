@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Потребности новорождённого</title>
-    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoi0J/QvtC/0YLQtdC00L3QuNC1INC+0L3QvtCy0L7Rg9C00LvRjyDQvdC+0LLRgNC+0YHRgtCw0L0iLCJzaG9ydF9uYW1lIjoi0J/QvtC/0YLQtdC00L3QuNC1IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vd3d3Lmdvb2dsZS5jb20vZmF2aWNvbi5pY28iLCJzaXplcyI6IjE5MngxOTIiLCJ0eXBlIjoiaW1hZ2UvaWNvIn1dLCJ0aGVtZV9jb2xvciI6IiNmZmZmZmYiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI2ZmZmZmZiIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwic3RhcnRfdXJsIjoiLiJ9">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,10 +14,7 @@
             flex-direction: column;
             align-items: center;
         }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
+        h1 { text-align: center; color: #333; }
         .item {
             background-color: #fff;
             border: 1px solid #ddd;
@@ -31,49 +27,18 @@
             align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .item.overdue {
-            border-color: #ff0000;
-            background-color: #ffecec;
-        }
-        .icon {
-            font-size: 24px;
-            margin-right: 15px;
-            color: #666;
-        }
-        .content {
-            flex: 1;
-        }
-        .title {
-            font-size: 18px;
-            font-weight: bold;
-            margin: 0;
-        }
-        .description {
-            font-size: 14px;
-            color: #666;
-            margin: 5px 0;
-        }
-        .last-time {
-            font-size: 12px;
-            color: #888;
-        }
+        .item.overdue { border-color: #ff0000; background-color: #ffecec; }
+        .icon { font-size: 24px; margin-right: 15px; color: #666; }
+        .content { flex: 1; }
+        .title { font-size: 18px; font-weight: bold; margin: 0; }
+        .description { font-size: 14px; color: #666; margin: 5px 0; }
+        .last-time { font-size: 12px; color: #888; }
         button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 20px;
-            padding: 8px 15px;
-            font-size: 14px;
-            cursor: pointer;
+            background-color: #007bff; color: white; border: none; border-radius: 20px;
+            padding: 8px 15px; font-size: 14px; cursor: pointer;
         }
-        button:hover {
-            background-color: #0056b3;
-        }
-        #error-message {
-            color: red;
-            text-align: center;
-            margin-top: 10px;
-        }
+        button:hover { background-color: #0056b3; }
+        #error-message { color: red; text-align: center; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -140,90 +105,25 @@
         <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
     </div>
 
-    <!-- Подключение Firebase SDK с последней версией -->
-    <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js"></script>
+    <!-- Подключение Firebase через ES-модули -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-    <script>
-        // Конфигурация Firebase
-        const firebaseConfig = {
+        const errorMessage = document.getElementById('error-message');
+
+        const app = initializeApp({
             apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
             authDomain: "ds-nurce-bdc37.firebaseapp.com",
             databaseURL: "https://ds-nurce-bdc37-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "ds-nurce-bdc37",
-            storageBucket: "ds-nurce-bdc37.firebasestorage.app",
+            storageBucket: "ds-nurce-bdc37.appspot.com",
             messagingSenderId: "725307523922",
             appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
-        };
+        });
 
-        // Элемент для отображения ошибок
-        const errorMessage = document.getElementById('error-message');
+        const database = getDatabase(app);
 
-        // Инициализация Firebase с проверкой
-        let database;
-        try {
-            firebase.initializeApp(firebaseConfig);
-            console.log("Firebase initialized successfully");
-            database = firebase.database();
-            console.log("Database connected:", database);
-        } catch (error) {
-            console.error("Firebase initialization failed:", error);
-            errorMessage.textContent = "Ошибка подключения к Firebase. Проверьте консоль (F12) и отключите блокировщики.";
-            if (error.code === 'app/duplicate-app') {
-                console.log("Firebase app already initialized, using existing instance");
-                database = firebase.database();
-                console.log("Database connected:", database);
-            }
-        }
-
-        function markDone(id, maxMinutes) {
-            if (!database) {
-                console.error("Database not initialized");
-                errorMessage.textContent = "База данных не инициализирована. Проверьте подключение.";
-                return;
-            }
-            try {
-                const now = Date.now();
-                console.log(`Marking ${id} as done at ${now}`);
-                database.ref('actions/' + id).set({ timestamp: now }, (error) => {
-                    if (error) {
-                        console.error(`Failed to save ${id} to Firebase:`, error);
-                        errorMessage.textContent = `Ошибка записи: ${error.message}`;
-                    } else {
-                        console.log(`Successfully saved ${id} to Firebase`);
-                        updateTime(id, maxMinutes, now);
-                    }
-                });
-            } catch (error) {
-                console.error(`Error in markDone for ${id}:`, error);
-                errorMessage.textContent = `Ошибка: ${error.message}`;
-            }
-        }
-
-        function updateTime(id, maxMinutes, timestamp) {
-            try {
-                const item = document.getElementById(id);
-                const lastTimeElem = item.querySelector('.last-time');
-                if (timestamp) {
-                    const diff = Date.now() - timestamp;
-                    const minutesAgo = Math.floor(diff / 60000);
-                    lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
-                    if (minutesAgo > maxMinutes) {
-                        item.classList.add('overdue');
-                    } else {
-                        item.classList.remove('overdue');
-                    }
-                } else {
-                    lastTimeElem.textContent = 'Последний раз: никогда';
-                    item.classList.add('overdue');
-                }
-            } catch (error) {
-                console.error(`Error in updateTime for ${id}:`, error);
-                errorMessage.textContent = `Ошибка обновления: ${error.message}`;
-            }
-        }
-
-        // Инициализация
         const items = [
             { id: 'feeding', max: 180 },
             { id: 'diaper', max: 240 },
@@ -233,42 +133,52 @@
             { id: 'contact', max: 1440 }
         ];
 
-        if (database) {
-            items.forEach(item => {
-                try {
-                    database.ref('actions/' + item.id).on('value', (snapshot) => {
-                        const data = snapshot.val();
-                        console.log(`Received data for ${item.id}:`, data);
-                        updateTime(item.id, item.max, data ? data.timestamp : null);
-                    }, (error) => {
-                        console.error(`Failed to read ${item.id} from Firebase:`, error);
-                        errorMessage.textContent = `Ошибка чтения: ${error.message}`;
-                    });
-                } catch (error) {
-                    console.error(`Error setting up listener for ${item.id}:`, error);
-                    errorMessage.textContent = `Ошибка настройки: ${error.message}`;
-                }
-            });
+        function updateTime(id, maxMinutes, timestamp) {
+            const item = document.getElementById(id);
+            const lastTimeElem = item.querySelector('.last-time');
+            if (timestamp) {
+                const diff = Date.now() - timestamp;
+                const minutesAgo = Math.floor(diff / 60000);
+                lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
+                if (minutesAgo > maxMinutes) item.classList.add('overdue');
+                else item.classList.remove('overdue');
+            } else {
+                lastTimeElem.textContent = 'Последний раз: никогда';
+                item.classList.add('overdue');
+            }
         }
 
-        // Обновление каждые 60 секунд
-        setInterval(() => {
-            if (database) {
-                items.forEach(item => {
-                    try {
-                        database.ref('actions/' + item.id).once('value', (snapshot) => {
-                            const data = snapshot.val();
-                            updateTime(item.id, item.max, data ? data.timestamp : null);
-                        }, (error) => {
-                            console.error(`Failed to fetch ${item.id} in interval:`, error);
-                            errorMessage.textContent = `Ошибка обновления: ${error.message}`;
-                        });
-                    } catch (error) {
-                        console.error(`Error in interval for ${item.id}:`, error);
-                        errorMessage.textContent = `Ошибка интервала: ${error.message}`;
-                    }
+        function markDone(id, maxMinutes) {
+            const now = Date.now();
+            set(ref(database, 'actions/' + id), { timestamp: now })
+                .then(() => updateTime(id, maxMinutes, now))
+                .catch(err => {
+                    console.error(err);
+                    errorMessage.textContent = `Ошибка записи: ${err.message}`;
                 });
-            }
+        }
+
+        // Установка слушателей для всех действий
+        items.forEach(item => {
+            const actionRef = ref(database, 'actions/' + item.id);
+            onValue(actionRef, snapshot => {
+                const data = snapshot.val();
+                updateTime(item.id, item.max, data ? data.timestamp : null);
+            }, err => {
+                console.error(err);
+                errorMessage.textContent = `Ошибка чтения: ${err.message}`;
+            });
+        });
+
+        // Автообновление каждые 60 секунд
+        setInterval(() => {
+            items.forEach(item => {
+                const actionRef = ref(database, 'actions/' + item.id);
+                onValue(actionRef, snapshot => {
+                    const data = snapshot.val();
+                    updateTime(item.id, item.max, data ? data.timestamp : null);
+                });
+            });
         }, 60000);
     </script>
 </body>
