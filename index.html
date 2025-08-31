@@ -69,10 +69,16 @@
         button:hover {
             background-color: #0056b3;
         }
+        #error-message {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <h1>Потребности новорождённого — приоритет и частота</h1>
+    <div id="error-message"></div>
 
     <div class="item" id="feeding">
         <span class="icon">🍼</span>
@@ -134,9 +140,9 @@
         <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
     </div>
 
-    <!-- Подключение Firebase SDK с обновленной версией -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.2/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.2/firebase-database.js"></script>
+    <!-- Подключение Firebase SDK с последней версией -->
+    <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js"></script>
 
     <script>
         // Конфигурация Firebase
@@ -150,24 +156,39 @@
             appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
         };
 
-        // Инициализация Firebase
+        // Элемент для отображения ошибок
+        const errorMessage = document.getElementById('error-message');
+
+        // Инициализация Firebase с проверкой
+        let database;
         try {
             firebase.initializeApp(firebaseConfig);
             console.log("Firebase initialized successfully");
-            const database = firebase.database();
+            database = firebase.database();
             console.log("Database connected:", database);
         } catch (error) {
             console.error("Firebase initialization failed:", error);
+            errorMessage.textContent = "Ошибка подключения к Firebase. Проверьте консоль (F12) и отключите блокировщики.";
+            if (error.code === 'app/duplicate-app') {
+                console.log("Firebase app already initialized, using existing instance");
+                database = firebase.database();
+                console.log("Database connected:", database);
+            }
         }
 
         function markDone(id, maxMinutes) {
+            if (!database) {
+                console.error("Database not initialized");
+                errorMessage.textContent = "База данных не инициализирована. Проверьте подключение.";
+                return;
+            }
             try {
-                const database = firebase.database();
                 const now = Date.now();
                 console.log(`Marking ${id} as done at ${now}`);
                 database.ref('actions/' + id).set({ timestamp: now }, (error) => {
                     if (error) {
                         console.error(`Failed to save ${id} to Firebase:`, error);
+                        errorMessage.textContent = `Ошибка записи: ${error.message}`;
                     } else {
                         console.log(`Successfully saved ${id} to Firebase`);
                         updateTime(id, maxMinutes, now);
@@ -175,6 +196,7 @@
                 });
             } catch (error) {
                 console.error(`Error in markDone for ${id}:`, error);
+                errorMessage.textContent = `Ошибка: ${error.message}`;
             }
         }
 
@@ -197,6 +219,7 @@
                 }
             } catch (error) {
                 console.error(`Error in updateTime for ${id}:`, error);
+                errorMessage.textContent = `Ошибка обновления: ${error.message}`;
             }
         }
 
@@ -210,37 +233,43 @@
             { id: 'contact', max: 1440 }
         ];
 
-        items.forEach(item => {
-            try {
-                const database = firebase.database();
-                database.ref('actions/' + item.id).on('value', (snapshot) => {
-                    const data = snapshot.val();
-                    console.log(`Received data for ${item.id}:`, data);
-                    updateTime(item.id, item.max, data ? data.timestamp : null);
-                }, (error) => {
-                    console.error(`Failed to read ${item.id} from Firebase:`, error);
-                });
-            } catch (error) {
-                console.error(`Error setting up listener for ${item.id}:`, error);
-            }
-        });
+        if (database) {
+            items.forEach(item => {
+                try {
+                    database.ref('actions/' + item.id).on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        console.log(`Received data for ${item.id}:`, data);
+                        updateTime(item.id, item.max, data ? data.timestamp : null);
+                    }, (error) => {
+                        console.error(`Failed to read ${item.id} from Firebase:`, error);
+                        errorMessage.textContent = `Ошибка чтения: ${error.message}`;
+                    });
+                } catch (error) {
+                    console.error(`Error setting up listener for ${item.id}:`, error);
+                    errorMessage.textContent = `Ошибка настройки: ${error.message}`;
+                }
+            });
+        }
 
         // Обновление каждые 60 секунд
         setInterval(() => {
-            items.forEach(item => {
-                try {
-                    const database = firebase.database();
-                    database.ref('actions/' + item.id).once('value', (snapshot) => {
-                        const data = snapshot.val();
-                        updateTime(item.id, item.max, data ? data.timestamp : null);
-                    }, (error) => {
-                        console.error(`Failed to fetch ${item.id} in interval:`, error);
-                    });
-                } catch (error) {
-                    console.error(`Error in interval for ${item.id}:`, error);
-                }
-            });
+            if (database) {
+                items.forEach(item => {
+                    try {
+                        database.ref('actions/' + item.id).once('value', (snapshot) => {
+                            const data = snapshot.val();
+                            updateTime(item.id, item.max, data ? data.timestamp : null);
+                        }, (error) => {
+                            console.error(`Failed to fetch ${item.id} in interval:`, error);
+                            errorMessage.textContent = `Ошибка обновления: ${error.message}`;
+                        });
+                    } catch (error) {
+                        console.error(`Error in interval for ${item.id}:`, error);
+                        errorMessage.textContent = `Ошибка интервала: ${error.message}`;
+                    }
+                });
+            }
         }, 60000);
     </script>
 </body>
-    </html>
+</html>
