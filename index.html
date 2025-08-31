@@ -134,15 +134,16 @@
         <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
     </div>
 
-    <!-- Подключение Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js"></script>
+    <!-- Подключение Firebase SDK с обновленной версией -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.2/firebase-database.js"></script>
 
     <script>
         // Конфигурация Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
             authDomain: "ds-nurce-bdc37.firebaseapp.com",
+            databaseURL: "https://ds-nurce-bdc37-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "ds-nurce-bdc37",
             storageBucket: "ds-nurce-bdc37.firebasestorage.app",
             messagingSenderId: "725307523922",
@@ -153,27 +154,25 @@
         try {
             firebase.initializeApp(firebaseConfig);
             console.log("Firebase initialized successfully");
+            const database = firebase.database();
+            console.log("Database connected:", database);
         } catch (error) {
             console.error("Firebase initialization failed:", error);
         }
 
-        const database = firebase.database();
-
         function markDone(id, maxMinutes) {
             try {
+                const database = firebase.database();
                 const now = Date.now();
                 console.log(`Marking ${id} as done at ${now}`);
-                // Сохраняем время в Firebase
-                database.ref('actions/' + id).set({
-                    timestamp: now
-                }, (error) => {
+                database.ref('actions/' + id).set({ timestamp: now }, (error) => {
                     if (error) {
                         console.error(`Failed to save ${id} to Firebase:`, error);
                     } else {
                         console.log(`Successfully saved ${id} to Firebase`);
+                        updateTime(id, maxMinutes, now);
                     }
                 });
-                updateTime(id, maxMinutes, now);
             } catch (error) {
                 console.error(`Error in markDone for ${id}:`, error);
             }
@@ -211,9 +210,9 @@
             { id: 'contact', max: 1440 }
         ];
 
-        // Загрузка данных из Firebase и обновление интерфейса
         items.forEach(item => {
             try {
+                const database = firebase.database();
                 database.ref('actions/' + item.id).on('value', (snapshot) => {
                     const data = snapshot.val();
                     console.log(`Received data for ${item.id}:`, data);
@@ -230,6 +229,7 @@
         setInterval(() => {
             items.forEach(item => {
                 try {
+                    const database = firebase.database();
                     database.ref('actions/' + item.id).once('value', (snapshot) => {
                         const data = snapshot.val();
                         updateTime(item.id, item.max, data ? data.timestamp : null);
@@ -243,4 +243,4 @@
         }, 60000);
     </script>
 </body>
-                                                                    </html>
+    </html>
