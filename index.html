@@ -150,33 +150,54 @@
         };
 
         // Инициализация Firebase
-        firebase.initializeApp(firebaseConfig);
+        try {
+            firebase.initializeApp(firebaseConfig);
+            console.log("Firebase initialized successfully");
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+        }
+
         const database = firebase.database();
 
         function markDone(id, maxMinutes) {
-            const now = Date.now();
-            // Сохраняем время в Firebase
-            database.ref('actions/' + id).set({
-                timestamp: now
-            });
-            updateTime(id, maxMinutes, now);
+            try {
+                const now = Date.now();
+                console.log(`Marking ${id} as done at ${now}`);
+                // Сохраняем время в Firebase
+                database.ref('actions/' + id).set({
+                    timestamp: now
+                }, (error) => {
+                    if (error) {
+                        console.error(`Failed to save ${id} to Firebase:`, error);
+                    } else {
+                        console.log(`Successfully saved ${id} to Firebase`);
+                    }
+                });
+                updateTime(id, maxMinutes, now);
+            } catch (error) {
+                console.error(`Error in markDone for ${id}:`, error);
+            }
         }
 
         function updateTime(id, maxMinutes, timestamp) {
-            const item = document.getElementById(id);
-            const lastTimeElem = item.querySelector('.last-time');
-            if (timestamp) {
-                const diff = Date.now() - timestamp;
-                const minutesAgo = Math.floor(diff / 60000);
-                lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
-                if (minutesAgo > maxMinutes) {
-                    item.classList.add('overdue');
+            try {
+                const item = document.getElementById(id);
+                const lastTimeElem = item.querySelector('.last-time');
+                if (timestamp) {
+                    const diff = Date.now() - timestamp;
+                    const minutesAgo = Math.floor(diff / 60000);
+                    lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
+                    if (minutesAgo > maxMinutes) {
+                        item.classList.add('overdue');
+                    } else {
+                        item.classList.remove('overdue');
+                    }
                 } else {
-                    item.classList.remove('overdue');
+                    lastTimeElem.textContent = 'Последний раз: никогда';
+                    item.classList.add('overdue');
                 }
-            } else {
-                lastTimeElem.textContent = 'Последний раз: никогда';
-                item.classList.add('overdue');
+            } catch (error) {
+                console.error(`Error in updateTime for ${id}:`, error);
             }
         }
 
@@ -192,21 +213,34 @@
 
         // Загрузка данных из Firebase и обновление интерфейса
         items.forEach(item => {
-            database.ref('actions/' + item.id).on('value', (snapshot) => {
-                const data = snapshot.val();
-                updateTime(item.id, item.max, data ? data.timestamp : null);
-            });
+            try {
+                database.ref('actions/' + item.id).on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    console.log(`Received data for ${item.id}:`, data);
+                    updateTime(item.id, item.max, data ? data.timestamp : null);
+                }, (error) => {
+                    console.error(`Failed to read ${item.id} from Firebase:`, error);
+                });
+            } catch (error) {
+                console.error(`Error setting up listener for ${item.id}:`, error);
+            }
         });
 
         // Обновление каждые 60 секунд
         setInterval(() => {
             items.forEach(item => {
-                database.ref('actions/' + item.id).once('value', (snapshot) => {
-                    const data = snapshot.val();
-                    updateTime(item.id, item.max, data ? data.timestamp : null);
-                });
+                try {
+                    database.ref('actions/' + item.id).once('value', (snapshot) => {
+                        const data = snapshot.val();
+                        updateTime(item.id, item.max, data ? data.timestamp : null);
+                    }, (error) => {
+                        console.error(`Failed to fetch ${item.id} in interval:`, error);
+                    });
+                } catch (error) {
+                    console.error(`Error in interval for ${item.id}:`, error);
+                }
             });
         }, 60000);
     </script>
 </body>
-</html>
+                                                                    </html>
