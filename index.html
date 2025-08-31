@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -134,50 +134,78 @@
         <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
     </div>
 
+    <!-- Подключение Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js"></script>
+
     <script>
+        // Конфигурация Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
+            authDomain: "ds-nurce-bdc37.firebaseapp.com",
+            projectId: "ds-nurce-bdc37",
+            storageBucket: "ds-nurce-bdc37.firebasestorage.app",
+            messagingSenderId: "725307523922",
+            appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
+        };
+
+        // Инициализация Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
         function markDone(id, maxMinutes) {
             const now = Date.now();
-            localStorage.setItem(id, now.toString());
-            updateTime(id, maxMinutes);
+            // Сохраняем время в Firebase
+            database.ref('actions/' + id).set({
+                timestamp: now
+            });
+            updateTime(id, maxMinutes, now);
         }
 
-        function updateTime(id, maxMinutes) {
-            const lastStr = localStorage.getItem(id);
+        function updateTime(id, maxMinutes, timestamp) {
             const item = document.getElementById(id);
             const lastTimeElem = item.querySelector('.last-time');
-            if (lastStr) {
-                const last = parseInt(lastStr, 10);
-                if (!isNaN(last)) {
-                    const diff = Date.now() - last;
-                    const minutesAgo = Math.floor(diff / 60000);
-                    lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
-                    if (minutesAgo > maxMinutes) {
-                        item.classList.add('overdue');
-                    } else {
-                        item.classList.remove('overdue');
-                    }
-                    return;
+            if (timestamp) {
+                const diff = Date.now() - timestamp;
+                const minutesAgo = Math.floor(diff / 60000);
+                lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
+                if (minutesAgo > maxMinutes) {
+                    item.classList.add('overdue');
+                } else {
+                    item.classList.remove('overdue');
                 }
+            } else {
+                lastTimeElem.textContent = 'Последний раз: никогда';
+                item.classList.add('overdue');
             }
-            lastTimeElem.textContent = 'Последний раз: никогда';
-            item.classList.add('overdue');
         }
 
         // Инициализация
         const items = [
-            {id: 'feeding', max: 180},
-            {id: 'diaper', max: 240},
-            {id: 'sleep', max: 1440},
-            {id: 'temperature', max: 180},
-            {id: 'burping', max: 180},
-            {id: 'contact', max: 1440}
+            { id: 'feeding', max: 180 },
+            { id: 'diaper', max: 240 },
+            { id: 'sleep', max: 1440 },
+            { id: 'temperature', max: 180 },
+            { id: 'burping', max: 180 },
+            { id: 'contact', max: 1440 }
         ];
 
-        items.forEach(item => updateTime(item.id, item.max));
+        // Загрузка данных из Firebase и обновление интерфейса
+        items.forEach(item => {
+            database.ref('actions/' + item.id).on('value', (snapshot) => {
+                const data = snapshot.val();
+                updateTime(item.id, item.max, data ? data.timestamp : null);
+            });
+        });
 
         // Обновление каждые 60 секунд
         setInterval(() => {
-            items.forEach(item => updateTime(item.id, item.max));
+            items.forEach(item => {
+                database.ref('actions/' + item.id).once('value', (snapshot) => {
+                    const data = snapshot.val();
+                    updateTime(item.id, item.max, data ? data.timestamp : null);
+                });
+            });
         }, 60000);
     </script>
 </body>
