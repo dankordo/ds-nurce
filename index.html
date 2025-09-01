@@ -16,6 +16,12 @@
             align-items: center;
         }
         h1 { text-align: center; color: #333; }
+        .lang-switch {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
         .item {
             background-color: #fff;
             border: 1px solid #ddd;
@@ -43,67 +49,73 @@
     </style>
 </head>
 <body>
-    <h1>Потребности новорождённого — приоритет и частота</h1>
+    <div class="lang-switch">
+        <span onclick="setLanguage('ru')">🇷🇺</span>
+        <span onclick="setLanguage('en')">🇬🇧</span>
+        <span onclick="setLanguage('de')">🇩🇪</span>
+    </div>
+
+    <h1 id="app-title"></h1>
     <div id="error-message"></div>
 
     <div class="item" id="feeding">
         <span class="icon">🍼</span>
         <div class="content">
-            <p class="title">Кормление</p>
-            <p class="description">каждые 2-3 часа днём и ночью</p>
-            <p class="last-time">Последний раз: никогда</p>
+            <p class="title"></p>
+            <p class="description"></p>
+            <p class="last-time"></p>
         </div>
-        <button onclick="markDone('feeding', 180)">Сделано сейчас</button>
+        <button></button>
     </div>
 
     <div class="item" id="diaper">
         <span class="icon">🩲</span>
         <div class="content">
-            <p class="title">Подгузник</p>
-            <p class="description">каждые 2-4 часа</p>
-            <p class="last-time">Последний раз: никогда</p>
+            <p class="title"></p>
+            <p class="description"></p>
+            <p class="last-time"></p>
         </div>
-        <button onclick="markDone('diaper', 240)">Сделано сейчас</button>
+        <button></button>
     </div>
 
     <div class="item" id="sleep">
         <span class="icon">🌙</span>
         <div class="content">
-            <p class="title">Сон</p>
-            <p class="description">в среднем 14-17 часов в сутки</p>
-            <p class="last-time">Последний раз: никогда</p>
+            <p class="title"></p>
+            <p class="description"></p>
+            <p class="last-time"></p>
         </div>
-        <button onclick="markDone('sleep', 1440)">Сделано сейчас</button>
+        <button></button>
     </div>
 
     <div class="item" id="temperature">
         <span class="icon">🌡️</span>
         <div class="content">
-            <p class="title">Температура</p>
-            <p class="description">каждые 2-3 часа</p>
-            <p class="last-time">Последний раз: никогда</p>
+            <p class="title"></p>
+            <p class="description"></p>
+            <p class="last-time"></p>
         </div>
-        <button onclick="markDone('temperature', 180)">Сделано сейчас</button>
+        <button></button>
     </div>
 
     <div class="item" id="burping">
         <span class="icon">😊</span>
         <div class="content">
-            <p class="title">Отрыжка</p>
-            <p class="description">после каждого кормления</p>
-            <p class="last-time">Последний раз: никогда</p>
+            <p class="title"></p>
+            <p class="description"></p>
+            <p class="last-time"></p>
         </div>
-        <button onclick="markDone('burping', 180)">Сделано сейчас</button>
+        <button></button>
     </div>
 
     <div class="item" id="contact">
         <span class="icon">✋</span>
         <div class="content">
-            <p class="title">Контакт</p>
-            <p class="description">каждый день, многократно</p>
-            <p class="last-time">Последний раз: никогда</p>
+            <p class="title"></p>
+            <p class="description"></p>
+            <p class="last-time"></p>
         </div>
-        <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
+        <button></button>
     </div>
 
     <script type="module">
@@ -111,6 +123,67 @@
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
         const errorMessage = document.getElementById('error-message');
+
+        const translations = {
+            ru: {
+                title: "Потребности новорождённого — приоритет и частота",
+                items: {
+                    feeding: { title: "Кормление", desc: "каждые 2-3 часа днём и ночью" },
+                    diaper: { title: "Подгузник", desc: "каждые 2-4 часа" },
+                    sleep: { title: "Сон", desc: "в среднем 14-17 часов в сутки" },
+                    temperature: { title: "Температура", desc: "каждые 2-3 часа" },
+                    burping: { title: "Отрыжка", desc: "после каждого кормления" },
+                    contact: { title: "Контакт", desc: "каждый день, многократно" }
+                },
+                button: "Сделано сейчас",
+                never: "Последний раз: никогда",
+                ago: m => `Последний раз: ${m} мин. назад`
+            },
+            en: {
+                title: "Newborn Needs — Priority and Frequency",
+                items: {
+                    feeding: { title: "Feeding", desc: "every 2-3 hours, day and night" },
+                    diaper: { title: "Diaper", desc: "every 2-4 hours" },
+                    sleep: { title: "Sleep", desc: "average 14-17 hours per day" },
+                    temperature: { title: "Temperature", desc: "every 2-3 hours" },
+                    burping: { title: "Burping", desc: "after each feeding" },
+                    contact: { title: "Contact", desc: "daily, multiple times" }
+                },
+                button: "Done now",
+                never: "Last time: never",
+                ago: m => `Last time: ${m} min ago`
+            },
+            de: {
+                title: "Neugeborenen-Bedürfnisse — Priorität und Häufigkeit",
+                items: {
+                    feeding: { title: "Füttern", desc: "alle 2–3 Stunden, Tag und Nacht" },
+                    diaper: { title: "Windel", desc: "alle 2–4 Stunden" },
+                    sleep: { title: "Schlaf", desc: "durchschnittlich 14–17 Stunden pro Tag" },
+                    temperature: { title: "Temperatur", desc: "alle 2–3 Stunden" },
+                    burping: { title: "Bäuerchen", desc: "nach jeder Fütterung" },
+                    contact: { title: "Kontakt", desc: "täglich, mehrmals" }
+                },
+                button: "Jetzt erledigt",
+                never: "Zuletzt: nie",
+                ago: m => `Zuletzt: vor ${m} Min.`
+            }
+        };
+
+        let currentLang = 'ru';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            document.getElementById('app-title').textContent = translations[lang].title;
+            Object.keys(translations[lang].items).forEach(id => {
+                const el = document.getElementById(id);
+                el.querySelector('.title').textContent = translations[lang].items[id].title;
+                el.querySelector('.description').textContent = translations[lang].items[id].desc;
+                if (!el.querySelector('.last-time').dataset.timestamp) {
+                    el.querySelector('.last-time').textContent = translations[lang].never;
+                }
+                el.querySelector('button').textContent = translations[lang].button;
+            });
+        }
 
         const app = initializeApp({
             apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
@@ -139,10 +212,11 @@
             if (timestamp) {
                 const diff = Date.now() - timestamp;
                 const minutesAgo = Math.floor(diff / 60000);
-                lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
+                lastTimeElem.dataset.timestamp = timestamp;
+                lastTimeElem.textContent = translations[currentLang].ago(minutesAgo);
                 item.classList.toggle('overdue', minutesAgo > maxMinutes);
             } else {
-                lastTimeElem.textContent = 'Последний раз: никогда';
+                lastTimeElem.textContent = translations[currentLang].never;
                 item.classList.add('overdue');
             }
         }
@@ -152,11 +226,10 @@
             set(ref(db, 'actions/' + id), { timestamp: now })
                 .catch(err => {
                     console.error(err);
-                    errorMessage.textContent = `Ошибка записи: ${err.message}`;
+                    errorMessage.textContent = `Error: ${err.message}`;
                 });
         };
 
-        // Подписка на изменения
         items.forEach(item => {
             const r = ref(db, 'actions/' + item.id);
             onValue(r, snap => {
@@ -164,23 +237,23 @@
                 updateTime(item.id, item.max, data ? data.timestamp : null);
             }, err => {
                 console.error(err);
-                errorMessage.textContent = `Ошибка чтения: ${err.message}`;
+                errorMessage.textContent = `Error: ${err.message}`;
             });
         });
 
-        // Локальное обновление счётчика минут
         setInterval(() => {
             items.forEach(item => {
                 const el = document.getElementById(item.id);
-                const txt = el.querySelector('.last-time').textContent;
-                const match = txt.match(/(\d+) мин/);
-                if (match) {
-                    let m = parseInt(match[1]) + 1;
-                    el.querySelector('.last-time').textContent = `Последний раз: ${m} мин. назад`;
-                    if (m > item.max) el.classList.add('overdue');
+                const ts = el.querySelector('.last-time').dataset.timestamp;
+                if (ts) {
+                    const minutesAgo = Math.floor((Date.now() - ts) / 60000);
+                    el.querySelector('.last-time').textContent = translations[currentLang].ago(minutesAgo);
+                    if (minutesAgo > item.max) el.classList.add('overdue');
                 }
             });
         }, 60000);
+
+        setLanguage('ru');
     </script>
 </body>
-            </html>
+</html>
