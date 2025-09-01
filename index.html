@@ -27,8 +27,10 @@
             display: flex;
             align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.3s, border-color 0.3s;
         }
         .item.overdue { border-color: #ff0000; background-color: #ffecec; }
+        .item.done { border-color: #28a745; background-color: #e6f4ea; }
         .icon { font-size: 24px; margin-right: 15px; color: #666; }
         .content { flex: 1; }
         .title { font-size: 18px; font-weight: bold; margin: 0; }
@@ -133,17 +135,30 @@
             { id: 'contact', max: 1440 }
         ];
 
+        function formatTime(minutes) {
+            if (minutes < 60) return `${minutes} мин. назад`;
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return m === 0 ? `${h} ч назад` : `${h} ч ${m} мин. назад`;
+        }
+
         function updateTime(id, maxMinutes, timestamp) {
             const item = document.getElementById(id);
             const lastTimeElem = item.querySelector('.last-time');
             if (timestamp) {
                 const diff = Date.now() - timestamp;
                 const minutesAgo = Math.floor(diff / 60000);
-                lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
-                item.classList.toggle('overdue', minutesAgo > maxMinutes);
+                lastTimeElem.textContent = `Последний раз: ${formatTime(minutesAgo)}`;
+                item.classList.remove('overdue', 'done');
+                if (minutesAgo > maxMinutes) {
+                    item.classList.add('overdue');
+                } else {
+                    item.classList.add('done');
+                }
             } else {
                 lastTimeElem.textContent = 'Последний раз: никогда';
                 item.classList.add('overdue');
+                item.classList.remove('done');
             }
         }
 
@@ -176,11 +191,37 @@
                 const match = txt.match(/(\d+) мин/);
                 if (match) {
                     let m = parseInt(match[1]) + 1;
-                    el.querySelector('.last-time').textContent = `Последний раз: ${m} мин. назад`;
-                    if (m > item.max) el.classList.add('overdue');
+                    el.querySelector('.last-time').textContent = `Последний раз: ${formatTime(m)}`;
+                    el.classList.remove('overdue', 'done');
+                    const max = items.find(i => i.id === el.id).max;
+                    if (m > max) {
+                        el.classList.add('overdue');
+                    } else {
+                        el.classList.add('done');
+                    }
+                } else if (txt.includes('ч')) {
+                    // Обновляем часы
+                    const timeMatch = txt.match(/(\d+) ч(?: (\d+) мин)?/);
+                    if (timeMatch) {
+                        let hours = parseInt(timeMatch[1]);
+                        let minutes = parseInt(timeMatch[2] || 0) + 1;
+                        if (minutes >= 60) {
+                            hours += 1;
+                            minutes -= 60;
+                        }
+                        const totalMinutes = hours * 60 + minutes;
+                        el.querySelector('.last-time').textContent = `Последний раз: ${formatTime(totalMinutes)}`;
+                        const max = items.find(i => i.id === el.id).max;
+                        el.classList.remove('overdue', 'done');
+                        if (totalMinutes > max) {
+                            el.classList.add('overdue');
+                        } else {
+                            el.classList.add('done');
+                        }
+                    }
                 }
             });
         }, 60000);
     </script>
 </body>
-            </html>
+    </html>
