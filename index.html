@@ -105,7 +105,6 @@
         <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
     </div>
 
-    <!-- Подключение Firebase через ES-модули -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
@@ -122,7 +121,7 @@
             appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
         });
 
-        const database = getDatabase(app);
+        const db = getDatabase(app);
 
         const items = [
             { id: 'feeding', max: 180 },
@@ -140,29 +139,27 @@
                 const diff = Date.now() - timestamp;
                 const minutesAgo = Math.floor(diff / 60000);
                 lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
-                if (minutesAgo > maxMinutes) item.classList.add('overdue');
-                else item.classList.remove('overdue');
+                item.classList.toggle('overdue', minutesAgo > maxMinutes);
             } else {
                 lastTimeElem.textContent = 'Последний раз: никогда';
                 item.classList.add('overdue');
             }
         }
 
-        function markDone(id, maxMinutes) {
+        window.markDone = function (id, maxMinutes) {
             const now = Date.now();
-            set(ref(database, 'actions/' + id), { timestamp: now })
-                .then(() => updateTime(id, maxMinutes, now))
+            set(ref(db, 'actions/' + id), { timestamp: now })
                 .catch(err => {
                     console.error(err);
                     errorMessage.textContent = `Ошибка записи: ${err.message}`;
                 });
-        }
+        };
 
-        // Установка слушателей для всех действий
+        // Подписка на изменения
         items.forEach(item => {
-            const actionRef = ref(database, 'actions/' + item.id);
-            onValue(actionRef, snapshot => {
-                const data = snapshot.val();
+            const r = ref(db, 'actions/' + item.id);
+            onValue(r, snap => {
+                const data = snap.val();
                 updateTime(item.id, item.max, data ? data.timestamp : null);
             }, err => {
                 console.error(err);
@@ -170,16 +167,19 @@
             });
         });
 
-        // Автообновление каждые 60 секунд
+        // Локальное обновление счётчика минут
         setInterval(() => {
             items.forEach(item => {
-                const actionRef = ref(database, 'actions/' + item.id);
-                onValue(actionRef, snapshot => {
-                    const data = snapshot.val();
-                    updateTime(item.id, item.max, data ? data.timestamp : null);
-                });
+                const el = document.getElementById(item.id);
+                const txt = el.querySelector('.last-time').textContent;
+                const match = txt.match(/(\d+) мин/);
+                if (match) {
+                    let m = parseInt(match[1]) + 1;
+                    el.querySelector('.last-time').textContent = `Последний раз: ${m} мин. назад`;
+                    if (m > item.max) el.classList.add('overdue');
+                }
             });
         }, 60000);
     </script>
 </body>
-</html>
+            </html>
