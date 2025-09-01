@@ -42,6 +42,7 @@
         }
         button:hover { background-color: #0056b3; }
         #error-message { color: red; text-align: center; margin-top: 10px; }
+        #notifications-control { margin-top: 20px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -108,6 +109,17 @@
         <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
     </div>
 
+    <div id="notifications-control">
+        <label>
+            <input type="radio" name="notifications" id="notifications-on" checked>
+            Уведомления включены
+        </label>
+        <label style="margin-left: 10px;">
+            <input type="radio" name="notifications" id="notifications-off">
+            Уведомления выключены
+        </label>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
@@ -127,24 +139,50 @@
         const db = getDatabase(app);
 
         const items = [
-            { id: 'feeding', max: 180 },
-            { id: 'diaper', max: 240 },
-            { id: 'sleep', max: 1440 },
-            { id: 'temperature', max: 180 },
-            { id: 'burping', max: 180 },
-            { id: 'contact', max: 1440 }
+            { id: 'feeding', max: 180, message: 'Пора покормить!' },
+            { id: 'diaper', max: 240, message: 'Пора сменить подгузник!' },
+            { id: 'sleep', max: 1440, message: 'Пора поспать!' },
+            { id: 'temperature', max: 180, message: 'Проверьте температуру!' },
+            { id: 'burping', max: 180, message: 'Пора отрыгнуть!' },
+            { id: 'contact', max: 1440, message: 'Пора контактировать с малышом!' }
         ];
+
+        let notificationsEnabled = true;
+
+        document.getElementById('notifications-on').addEventListener('change', () => notificationsEnabled = true);
+        document.getElementById('notifications-off').addEventListener('change', () => notificationsEnabled = false);
+
+        function formatTime(minutes) {
+            if (minutes < 60) return `${minutes} мин. назад`;
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return m === 0 ? `${h} ч назад` : `${h} ч ${m} мин. назад`;
+        }
+
+        function sendNotification(title) {
+            if (!notificationsEnabled || !("Notification" in window)) return;
+            if (Notification.permission === "granted") {
+                new Notification(title);
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") new Notification(title);
+                });
+            }
+        }
 
         function updateTime(id, maxMinutes, timestamp) {
             const item = document.getElementById(id);
             const lastTimeElem = item.querySelector('.last-time');
+            let wasOverdue = item.classList.contains('overdue');
+
             if (timestamp) {
                 const diff = Date.now() - timestamp;
                 const minutesAgo = Math.floor(diff / 60000);
-                lastTimeElem.textContent = `Последний раз: ${minutesAgo} мин. назад`;
+                lastTimeElem.textContent = `Последний раз: ${formatTime(minutesAgo)}`;
                 item.classList.remove('overdue', 'done');
                 if (minutesAgo > maxMinutes) {
                     item.classList.add('overdue');
+                    if (!wasOverdue) sendNotification(items.find(i => i.id === id).message);
                 } else {
                     item.classList.add('done');
                 }
@@ -164,7 +202,6 @@
                 });
         };
 
-        // Подписка на изменения
         items.forEach(item => {
             const r = ref(db, 'actions/' + item.id);
             onValue(r, snap => {
@@ -176,7 +213,6 @@
             });
         });
 
-        // Локальное обновление счётчика минут
         setInterval(() => {
             items.forEach(item => {
                 const el = document.getElementById(item.id);
@@ -184,10 +220,13 @@
                 const match = txt.match(/(\d+) мин/);
                 if (match) {
                     let m = parseInt(match[1]) + 1;
-                    el.querySelector('.last-time').textContent = `Последний раз: ${m} мин. назад`;
+                    el.querySelector('.last-time').textContent = `Последний раз: ${formatTime(m)}`;
+                    const max = items.find(i => i.id === el.id).max;
+                    let wasOverdue = el.classList.contains('overdue');
                     el.classList.remove('overdue', 'done');
-                    if (m > item.max) {
+                    if (m > max) {
                         el.classList.add('overdue');
+                        if (!wasOverdue) sendNotification(items.find(i => i.id === el.id).message);
                     } else {
                         el.classList.add('done');
                     }
@@ -196,4 +235,4 @@
         }, 60000);
     </script>
 </body>
-</html>
+                </html>
