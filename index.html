@@ -42,10 +42,67 @@
         }
         button:hover { background-color: #0056b3; }
         #error-message { color: red; text-align: center; margin-top: 10px; }
+
+        /* Toggle для уведомлений */
+        #notifications-control {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        #notifications-control .toggle-label {
+            font-size: 14px;
+            color: #333;
+            user-select: none;
+        }
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle input { display: none; }
+        .toggle .slider {
+            position: absolute;
+            inset: 0;
+            background: #ccc;
+            border-radius: 24px;
+            transition: .2s;
+        }
+        .toggle .slider::after {
+            content: "";
+            position: absolute;
+            width: 18px; height: 18px;
+            left: 3px; top: 3px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: .2s;
+        }
+        .toggle input:checked + .slider {
+            background: #28a745;
+        }
+        .toggle input:checked + .slider::after {
+            transform: translateX(20px);
+        }
+
+        /* Новая ссылка на events.html */
+        #events-link {
+            display: block;
+            margin-bottom: 20px;
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+        #events-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <h1>Потребности новорождённого — приоритет и частота</h1>
+    <a id="events-link" href="events.html">Список важных событий</a>
+
     <div id="error-message"></div>
 
     <div class="item" id="feeding">
@@ -108,6 +165,14 @@
         <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
     </div>
 
+    <div id="notifications-control" aria-label="Переключатель уведомлений">
+        <span class="toggle-label">Уведомления</span>
+        <label class="toggle">
+            <input type="checkbox" id="notificationsToggle">
+            <span class="slider" aria-hidden="true"></span>
+        </label>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
@@ -115,7 +180,7 @@
         const errorMessage = document.getElementById('error-message');
 
         const app = initializeApp({
-            apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
+            apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDзZ-vd3Uauw",
             authDomain: "ds-nurce-bdc37.firebaseapp.com",
             databaseURL: "https://ds-nurce-bdc37-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "ds-nurce-bdc37",
@@ -135,6 +200,9 @@
             { id: 'contact', max: 1440 }
         ];
 
+        const timestamps = {}; 
+        const notifiedState = {}; 
+
         function formatTime(minutes) {
             if (minutes < 60) return `${minutes} мин. назад`;
             const h = Math.floor(minutes / 60);
@@ -142,9 +210,49 @@
             return m === 0 ? `${h} ч назад` : `${h} ч ${m} мин. назад`;
         }
 
+        const notificationsToggle = document.getElementById('notificationsToggle');
+        let notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
+        if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
+
+        function ensureNotificationPermission() {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'default') Notification.requestPermission().catch(()=>{});
+        }
+
+        function sendNotificationFor(id) {
+            if (!notificationsEnabled || !('Notification' in window)) return;
+            if (Notification.permission !== 'granted') return;
+            const item = document.getElementById(id);
+            if (!item) return;
+            const name = item.querySelector('.title')?.textContent.trim() || id;
+            try { new Notification(`Пора ${name}!`); } catch(e){}
+        }
+
+        function immediateOverdueCheck() {
+            items.forEach(it => {
+                const el = document.getElementById(it.id);
+                if (!el) return;
+                if (el.classList.contains('overdue') && !notifiedState[it.id]) {
+                    sendNotificationFor(it.id);
+                    notifiedState[it.id] = true;
+                }
+            });
+        }
+
+        notificationsToggle?.addEventListener('change', () => {
+            notificationsEnabled = notificationsToggle.checked;
+            localStorage.setItem('notificationsEnabled', notificationsEnabled ? 'true' : 'false');
+            if (notificationsEnabled) {
+                ensureNotificationPermission();
+                immediateOverdueCheck();
+            }
+        });
+
         function updateTime(id, maxMinutes, timestamp) {
             const item = document.getElementById(id);
             const lastTimeElem = item.querySelector('.last-time');
+            const wasOverdue = item.classList.contains('overdue');
+
             if (timestamp) {
                 const diff = Date.now() - timestamp;
                 const minutesAgo = Math.floor(diff / 60000);
@@ -152,17 +260,26 @@
                 item.classList.remove('overdue', 'done');
                 if (minutesAgo > maxMinutes) {
                     item.classList.add('overdue');
+                    if (!wasOverdue && !notifiedState[id]) {
+                        sendNotificationFor(id);
+                        notifiedState[id] = true;
+                    }
                 } else {
                     item.classList.add('done');
+                    notifiedState[id] = false;
                 }
             } else {
                 lastTimeElem.textContent = 'Последний раз: никогда';
                 item.classList.add('overdue');
                 item.classList.remove('done');
+                if (!wasOverdue && !notifiedState[id]) {
+                    sendNotificationFor(id);
+                    notifiedState[id] = true;
+                }
             }
         }
 
-        window.markDone = function (id, maxMinutes) {
+        window.markDone = function(id, maxMinutes) {
             const now = Date.now();
             set(ref(db, 'actions/' + id), { timestamp: now })
                 .catch(err => {
@@ -171,57 +288,28 @@
                 });
         };
 
-        // Подписка на изменения
         items.forEach(item => {
             const r = ref(db, 'actions/' + item.id);
             onValue(r, snap => {
                 const data = snap.val();
-                updateTime(item.id, item.max, data ? data.timestamp : null);
+                timestamps[item.id] = data ? data.timestamp : null;
+                updateTime(item.id, item.max, timestamps[item.id]);
             }, err => {
                 console.error(err);
                 errorMessage.textContent = `Ошибка чтения: ${err.message}`;
             });
         });
 
-        // Локальное обновление счётчика минут
         setInterval(() => {
             items.forEach(item => {
-                const el = document.getElementById(item.id);
-                const txt = el.querySelector('.last-time').textContent;
-                const match = txt.match(/(\d+) мин/);
-                if (match) {
-                    let m = parseInt(match[1]) + 1;
-                    el.querySelector('.last-time').textContent = `Последний раз: ${formatTime(m)}`;
-                    el.classList.remove('overdue', 'done');
-                    const max = items.find(i => i.id === el.id).max;
-                    if (m > max) {
-                        el.classList.add('overdue');
-                    } else {
-                        el.classList.add('done');
-                    }
-                } else if (txt.includes('ч')) {
-                    // Обновляем часы
-                    const timeMatch = txt.match(/(\d+) ч(?: (\d+) мин)?/);
-                    if (timeMatch) {
-                        let hours = parseInt(timeMatch[1]);
-                        let minutes = parseInt(timeMatch[2] || 0) + 1;
-                        if (minutes >= 60) {
-                            hours += 1;
-                            minutes -= 60;
-                        }
-                        const totalMinutes = hours * 60 + minutes;
-                        el.querySelector('.last-time').textContent = `Последний раз: ${formatTime(totalMinutes)}`;
-                        const max = items.find(i => i.id === el.id).max;
-                        el.classList.remove('overdue', 'done');
-                        if (totalMinutes > max) {
-                            el.classList.add('overdue');
-                        } else {
-                            el.classList.add('done');
-                        }
-                    }
-                }
+                updateTime(item.id, item.max, timestamps[item.id]);
             });
         }, 60000);
+
+        if (notificationsEnabled) {
+            ensureNotificationPermission();
+            setTimeout(() => immediateOverdueCheck(), 300);
+        }
     </script>
 </body>
-    </html>
+</html>
