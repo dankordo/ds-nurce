@@ -1,265 +1,315 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Список важных событий</title>
-<link rel="icon" type="image/png" href="favicon.png">
-<style>
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f9f9f9;
-    margin: 0;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-h1 { text-align: center; color: #333; }
-a { margin-bottom: 20px; display: inline-block; text-decoration: none; color: #007bff; }
-a:hover { text-decoration: underline; }
-form {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-    max-width: 400px;
-    margin-bottom: 10px;
-}
-input, button, textarea { padding: 8px; font-size: 14px; border-radius: 6px; border: 1px solid #ccc; }
-button { cursor: pointer; background-color: #007bff; color: #fff; border: none; }
-button:hover { background-color: #0056b3; }
-#message { margin-bottom: 10px; }
-ul { list-style: none; padding: 0; width: 100%; max-width: 400px; }
-li { background: #fff; padding: 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: flex-start; }
-.description { font-size: 13px; color: #444; margin: 2px 0; }
-.datetime { font-size: 12px; color: #666; margin-top: 4px; }
-.buttons { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
-.edit-btn, .delete-btn, .remove-photo-btn { padding: 4px 8px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; }
-.edit-btn { background-color: #ffc107; color: #fff; }
-.edit-btn:hover { background-color: #e0a800; }
-.delete-btn { background-color: #dc3545; color: #fff; }
-.delete-btn:hover { background-color: #c82333; }
-.remove-photo-btn { background-color: #6c757d; color: #fff; }
-.remove-photo-btn:hover { background-color: #5a6268; }
-.thumbnail { max-width: 80px; max-height: 80px; margin-top: 5px; border-radius: 4px; object-fit: cover; cursor: pointer; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MidwifeApp</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { text-align: center; color: #333; }
+        .item {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .item.overdue { border-color: #ff0000; background-color: #ffecec; }
+        .item.done { border-color: #28a745; background-color: #e6f4ea; }
+        .icon { font-size: 24px; margin-right: 15px; color: #666; }
+        .content { flex: 1; }
+        .title { font-size: 18px; font-weight: bold; margin: 0; }
+        .description { font-size: 14px; color: #666; margin: 5px 0; }
+        .last-time { font-size: 12px; color: #888; }
+        button {
+            background-color: #007bff; color: white; border: none; border-radius: 20px;
+            padding: 8px 15px; font-size: 14px; cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+        #error-message { color: red; text-align: center; margin-top: 10px; }
+
+        /* Toggle для уведомлений */
+        #notifications-control {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        #notifications-control .toggle-label {
+            font-size: 14px;
+            color: #333;
+            user-select: none;
+        }
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle input { display: none; }
+        .toggle .slider {
+            position: absolute;
+            inset: 0;
+            background: #ccc;
+            border-radius: 24px;
+            transition: .2s;
+        }
+        .toggle .slider::after {
+            content: "";
+            position: absolute;
+            width: 18px; height: 18px;
+            left: 3px; top: 3px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: .2s;
+        }
+        .toggle input:checked + .slider {
+            background: #28a745;
+        }
+        .toggle input:checked + .slider::after {
+            transform: translateX(20px);
+        }
+
+        /* Новая ссылка на events.html */
+        #events-link {
+            display: block;
+            margin-bottom: 20px;
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+        #events-link:hover { text-decoration: underline; }
+    </style>
 </head>
 <body>
-<h1>Список важных событий</h1>
-<a href="index.html">← Вернуться на главную</a>
+    <h1>Потребности новорождённого — приоритет и частота</h1>
+    <a id="events-link" href="events.html">Список важных событий</a>
 
-<form id="eventForm">
-    <input type="text" id="eventName" placeholder="Событие" required>
-    <textarea id="eventDescription" placeholder="Краткое описание" rows="2"></textarea>
-    <input type="datetime-local" id="eventDateTime" required>
-    <input type="file" id="eventPhoto" accept="image/*">
-    <button type="submit">Добавить</button>
-</form>
+    <div id="error-message"></div>
 
-<div id="message"></div>
-<ul id="eventsList"></ul>
+    <div class="item" id="feeding">
+        <span class="icon">🍼</span>
+        <div class="content">
+            <p class="title">Кормление</p>
+            <p class="description">каждые 2-3 часа днём и ночью</p>
+            <p class="last-time">Последний раз: никогда</p>
+        </div>
+        <button onclick="markDone('feeding', 180)">Сделано сейчас</button>
+    </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+    <div class="item" id="diaper">
+        <span class="icon">🩲</span>
+        <div class="content">
+            <p class="title">Подгузник</p>
+            <p class="description">каждые 2-4 часа</p>
+            <p class="last-time">Последний раз: никогда</p>
+        </div>
+        <button onclick="markDone('diaper', 240)">Сделано сейчас</button>
+    </div>
 
-// Firebase
-const app = initializeApp({
-    apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDзZ-vd3Uauw",
-    authDomain: "ds-nurce-bdc37.firebaseapp.com",
-    databaseURL: "https://ds-nurce-bdc37-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "ds-nurce-bdc37",
-    storageBucket: "ds-nurce-bdc37.appspot.com",
-    messagingSenderId: "725307523922",
-    appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
-});
+    <div class="item" id="sleep">
+        <span class="icon">🌙</span>
+        <div class="content">
+            <p class="title">Сон</p>
+            <p class="description">в среднем 14-17 часов в сутки</p>
+            <p class="last-time">Последний раз: никогда</p>
+        </div>
+        <button onclick="markDone('sleep', 1440)">Сделано сейчас</button>
+    </div>
 
-const db = getDatabase(app);
-const storage = getStorage(app);
-const auth = getAuth(app);
-const eventsRef = ref(db, 'events');
+    <div class="item" id="temperature">
+        <span class="icon">🌡️</span>
+        <div class="content">
+            <p class="title">Температура</p>
+            <p class="description">каждые 2-3 часа</p>
+            <p class="last-time">Последний раз: никогда</p>
+        </div>
+        <button onclick="markDone('temperature', 180)">Сделано сейчас</button>
+    </div>
 
-const form = document.getElementById('eventForm');
-const eventsList = document.getElementById('eventsList');
-const photoInput = document.getElementById('eventPhoto');
-const messageDiv = document.getElementById('message');
-let editKey = null;
-let userReady = false;
+    <div class="item" id="burping">
+        <span class="icon">😊</span>
+        <div class="content">
+            <p class="title">Отрыжка</p>
+            <p class="description">после каждого кормления</p>
+            <p class="last-time">Последний раз: никогда</p>
+        </div>
+        <button onclick="markDone('burping', 180)">Сделано сейчас</button>
+    </div>
 
-// --- Анонимная авторизация ---
-signInAnonymously(auth)
-    .then(() => console.log("Анонимный вход выполнен"))
-    .catch(err => showMessage("Ошибка авторизации: " + err.message));
+    <div class="item" id="contact">
+        <span class="icon">✋</span>
+        <div class="content">
+            <p class="title">Контакт</p>
+            <p class="description">каждый день, многократно</p>
+            <p class="last-time">Последний раз: никогда</p>
+        </div>
+        <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
+    </div>
 
-onAuthStateChanged(auth, user=>{
-    if(user){
-        userReady = true;
-        console.log("Пользователь авторизован:", user.uid);
-    } else userReady = false;
-});
+    <div id="notifications-control" aria-label="Переключатель уведомлений">
+        <span class="toggle-label">Уведомления</span>
+        <label class="toggle">
+            <input type="checkbox" id="notificationsToggle">
+            <span class="slider" aria-hidden="true"></span>
+        </label>
+    </div>
 
-// --- Сообщения ---
-function showMessage(msg, isError=true){
-    messageDiv.textContent = msg;
-    messageDiv.style.color = isError ? 'red' : 'green';
-    setTimeout(()=>messageDiv.textContent='', 5000);
-}
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-// --- Сжатие изображения ---
-function resizeImage(file, maxWidth, maxHeight, quality=0.7){
-    return new Promise((resolve, reject)=>{
-        const reader = new FileReader();
-        reader.onload = e=>{
-            const img = new Image();
-            img.onload = ()=>{
-                let { width, height } = img;
-                if(width>maxWidth || height>maxHeight){
-                    const scale = Math.min(maxWidth/width, maxHeight/height);
-                    width*=scale; height*=scale;
+        const errorMessage = document.getElementById('error-message');
+
+        const app = initializeApp({
+            apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDзZ-vd3Uauw",
+            authDomain: "ds-nurce-bdc37.firebaseapp.com",
+            databaseURL: "https://ds-nurce-bdc37-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "ds-nurce-bdc37",
+            storageBucket: "ds-nurce-bdc37.appspot.com",
+            messagingSenderId: "725307523922",
+            appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
+        });
+
+        const db = getDatabase(app);
+
+        const items = [
+            { id: 'feeding', max: 180 },
+            { id: 'diaper', max: 240 },
+            { id: 'sleep', max: 1440 },
+            { id: 'temperature', max: 180 },
+            { id: 'burping', max: 180 },
+            { id: 'contact', max: 1440 }
+        ];
+
+        const timestamps = {}; 
+        const notifiedState = {}; 
+
+        function formatTime(minutes) {
+            if (minutes < 60) return `${minutes} мин. назад`;
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return m === 0 ? `${h} ч назад` : `${h} ч ${m} мин. назад`;
+        }
+
+        const notificationsToggle = document.getElementById('notificationsToggle');
+        let notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
+        if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
+
+        function ensureNotificationPermission() {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'default') Notification.requestPermission().catch(()=>{});
+        }
+
+        function sendNotificationFor(id) {
+            if (!notificationsEnabled || !('Notification' in window)) return;
+            if (Notification.permission !== 'granted') return;
+            const item = document.getElementById(id);
+            if (!item) return;
+            const name = item.querySelector('.title')?.textContent.trim() || id;
+            try { new Notification(`Пора ${name}!`); } catch(e){}
+        }
+
+        function immediateOverdueCheck() {
+            items.forEach(it => {
+                const el = document.getElementById(it.id);
+                if (!el) return;
+                if (el.classList.contains('overdue') && !notifiedState[it.id]) {
+                    sendNotificationFor(it.id);
+                    notifiedState[it.id] = true;
                 }
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img,0,0,width,height);
-                canvas.toBlob(blob=>{
-                    if(blob) resolve(blob);
-                    else reject(new Error("Ошибка создания Blob"));
-                }, 'image/jpeg', quality);
-            };
-            img.onerror = reject;
-            img.src = e.target.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
-
-// --- Добавление/редактирование события ---
-form.addEventListener('submit', async e=>{
-    e.preventDefault();
-    if(!userReady){ showMessage("Подождите авторизации"); return; }
-
-    const name = document.getElementById('eventName').value.trim();
-    const description = document.getElementById('eventDescription').value.trim();
-    const datetime = document.getElementById('eventDateTime').value;
-    if(!name || !datetime) return;
-
-    const file = photoInput.files[0];
-    let photoURL = null;
-    let thumbURL = null;
-
-    try{
-        if(file){
-            const resizedFull = await resizeImage(file, 1200, 1200);
-            const resizedThumb = await resizeImage(file, 150, 150, 0.6);
-            const safeName = file.name.replace(/\s+/g,'_').replace(/[^\w.-]/g,'');
-            const fullRef = storageRef(storage, `events_photos/full_${Date.now()}_${safeName}`);
-            const thumbRef = storageRef(storage, `events_photos/thumb_${Date.now()}_${safeName}`);
-            await uploadBytes(fullRef, resizedFull);
-            await uploadBytes(thumbRef, resizedThumb);
-            photoURL = await getDownloadURL(fullRef);
-            thumbURL = await getDownloadURL(thumbRef);
+            });
         }
 
-        const eventData = { name, description, datetime };
-        if(photoURL) eventData.photoURL = photoURL;
-        if(thumbURL) eventData.thumbURL = thumbURL;
-
-        if(editKey){
-            await update(ref(db,'events/'+editKey), eventData);
-            editKey = null;
-            showMessage("Событие успешно обновлено!", false);
-        } else {
-            await push(eventsRef, eventData);
-            showMessage("Событие успешно добавлено!", false);
-        }
-
-        form.reset();
-        photoInput.value = '';
-    } catch(err){
-        console.error(err);
-        showMessage("Ошибка при загрузке фото: " + err.message);
-    }
-});
-
-// --- Отображение событий ---
-onValue(eventsRef, snapshot=>{
-    const data = snapshot.val();
-    const entries = data ? Object.entries(data) : [];
-    entries.sort((a,b)=>new Date(b[1].datetime)-new Date(a[1].datetime));
-    eventsList.innerHTML = '';
-    entries.forEach(([key,item])=>{
-        const li = document.createElement('li');
-
-        const contentDiv = document.createElement('div');
-        const strong = document.createElement('strong');
-        strong.textContent = item.name;
-
-        const descDiv = document.createElement('div');
-        descDiv.className='description';
-        descDiv.textContent = item.description||'';
-
-        const dateDiv = document.createElement('div');
-        dateDiv.className='datetime';
-        dateDiv.textContent = item.datetime.replace('T',' ');
-
-        contentDiv.appendChild(strong);
-        contentDiv.appendChild(descDiv);
-        contentDiv.appendChild(dateDiv);
-
-        if(item.thumbURL){
-            const img = document.createElement('img');
-            img.src = item.thumbURL;
-            img.className='thumbnail';
-            if(item.photoURL) img.onclick = ()=>window.open(item.photoURL,'_blank');
-            contentDiv.appendChild(img);
-        }
-
-        const btnsDiv = document.createElement('div');
-        btnsDiv.className='buttons';
-
-        const editBtn = document.createElement('button');
-        editBtn.textContent='Редактировать';
-        editBtn.className='edit-btn';
-        editBtn.onclick = ()=>{
-            document.getElementById('eventName').value = item.name;
-            document.getElementById('eventDescription').value = item.description||'';
-            document.getElementById('eventDateTime').value = item.datetime;
-            photoInput.value = '';
-            editKey = key;
-        };
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent='Удалить';
-        deleteBtn.className='delete-btn';
-        deleteBtn.onclick = ()=>{
-            if(confirm(`Удалить событие "${item.name}"?`)){
-                remove(ref(db,'events/'+key));
+        notificationsToggle?.addEventListener('change', () => {
+            notificationsEnabled = notificationsToggle.checked;
+            localStorage.setItem('notificationsEnabled', notificationsEnabled ? 'true' : 'false');
+            if (notificationsEnabled) {
+                ensureNotificationPermission();
+                immediateOverdueCheck();
             }
-        };
+        });
 
-        const removePhotoBtn = document.createElement('button');
-        removePhotoBtn.textContent='Удалить фото';
-        removePhotoBtn.className='remove-photo-btn';
-        removePhotoBtn.onclick = ()=>{
-            if(confirm('Удалить фото этого события?')){
-                update(ref(db,'events/'+key), { photoURL:null, thumbURL:null });
+        function updateTime(id, maxMinutes, timestamp) {
+            const item = document.getElementById(id);
+            const lastTimeElem = item.querySelector('.last-time');
+            const wasOverdue = item.classList.contains('overdue');
+
+            if (timestamp) {
+                const diff = Date.now() - timestamp;
+                const minutesAgo = Math.floor(diff / 60000);
+                lastTimeElem.textContent = `Последний раз: ${formatTime(minutesAgo)}`;
+                item.classList.remove('overdue', 'done');
+                if (minutesAgo > maxMinutes) {
+                    item.classList.add('overdue');
+                    if (!wasOverdue && !notifiedState[id]) {
+                        sendNotificationFor(id);
+                        notifiedState[id] = true;
+                    }
+                } else {
+                    item.classList.add('done');
+                    notifiedState[id] = false;
+                }
+            } else {
+                lastTimeElem.textContent = 'Последний раз: никогда';
+                item.classList.add('overdue');
+                item.classList.remove('done');
+                if (!wasOverdue && !notifiedState[id]) {
+                    sendNotificationFor(id);
+                    notifiedState[id] = true;
+                }
             }
+        }
+
+        window.markDone = function(id, maxMinutes) {
+            const now = Date.now();
+            set(ref(db, 'actions/' + id), { timestamp: now })
+                .catch(err => {
+                    console.error(err);
+                    errorMessage.textContent = `Ошибка записи: ${err.message}`;
+                });
         };
 
-        btnsDiv.appendChild(editBtn);
-        btnsDiv.appendChild(deleteBtn);
-        if(item.photoURL) btnsDiv.appendChild(removePhotoBtn);
+        items.forEach(item => {
+            const r = ref(db, 'actions/' + item.id);
+            onValue(r, snap => {
+                const data = snap.val();
+                timestamps[item.id] = data ? data.timestamp : null;
+                updateTime(item.id, item.max, timestamps[item.id]);
+            }, err => {
+                console.error(err);
+                errorMessage.textContent = `Ошибка чтения: ${err.message}`;
+            });
+        });
 
-        li.appendChild(contentDiv);
-        li.appendChild(btnsDiv);
-        eventsList.appendChild(li);
-    });
-});
-</script>
+        setInterval(() => {
+            items.forEach(item => {
+                updateTime(item.id, item.max, timestamps[item.id]);
+            });
+        }, 60000);
+
+        if (notificationsEnabled) {
+            ensureNotificationPermission();
+            setTimeout(() => immediateOverdueCheck(), 300);
+        }
+    </script>
 </body>
-    </html>
+                                                           </html>
