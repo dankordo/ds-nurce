@@ -132,13 +132,13 @@ form.addEventListener('submit', async e=>{
     const name = document.getElementById('eventName').value.trim();
     const description = document.getElementById('eventDescription').value.trim();
     const datetime = document.getElementById('eventDateTime').value;
-    if(!name||!datetime) return;
+    if(!name || !datetime) return;
 
     let photoURL = null;
     let thumbURL = null;
     const file = photoInput.files[0];
 
-    try{
+    try {
         if(file){
             const resizedFull = await resizeImage(file, 1200, 1200);
             const resizedThumb = await resizeImage(file, 150, 150, 0.6);
@@ -152,8 +152,10 @@ form.addEventListener('submit', async e=>{
         }
 
         const eventData = { name, description, datetime };
-        if(photoURL) eventData.photoURL = photoURL;
-        if(thumbURL) eventData.thumbURL = thumbURL;
+        if(file){ // только если выбран новый файл, добавляем фото
+            eventData.photoURL = photoURL;
+            eventData.thumbURL = thumbURL;
+        }
 
         if(editKey){
             await update(ref(db,'events/'+editKey), eventData);
@@ -163,6 +165,7 @@ form.addEventListener('submit', async e=>{
         }
 
         form.reset();
+        photoInput.value = ''; // очищаем поле после добавления
     } catch(err){
         alert("Ошибка при загрузке фото: "+err.message);
         console.error("Ошибка загрузки фото:", err);
@@ -212,7 +215,7 @@ onValue(eventsRef, snapshot=>{
             document.getElementById('eventName').value=item.name;
             document.getElementById('eventDescription').value=item.description||'';
             document.getElementById('eventDateTime').value=item.datetime;
-            photoInput.value='';
+            photoInput.value=''; // не удаляем старое фото
             editKey = key;
         };
 
@@ -243,6 +246,4 @@ onValue(eventsRef, snapshot=>{
         eventsList.appendChild(li);
     });
 });
-</script>
-</body>
-</html>
+</
