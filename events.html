@@ -6,42 +6,42 @@
 <title>Список важных событий</title>
 <link rel="icon" type="image/png" href="favicon.png">
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        background-color: #f9f9f9;
-        margin: 0;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-    h1 { text-align: center; color: #333; }
-    a { margin-bottom: 20px; display: inline-block; text-decoration: none; color: #007bff; }
-    a:hover { text-decoration: underline; }
-    form {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        width: 100%;
-        max-width: 400px;
-        margin-bottom: 20px;
-    }
-    input, button, textarea { padding: 8px; font-size: 14px; border-radius: 6px; border: 1px solid #ccc; }
-    button { cursor: pointer; background-color: #007bff; color: #fff; border: none; }
-    button:hover { background-color: #0056b3; }
-    ul { list-style: none; padding: 0; width: 100%; max-width: 400px; }
-    li { background: #fff; padding: 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: flex-start; }
-    .description { font-size: 13px; color: #444; margin: 2px 0; }
-    .datetime { font-size: 12px; color: #666; margin-top: 4px; }
-    .buttons { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
-    .edit-btn, .delete-btn, .remove-photo-btn { padding: 4px 8px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; }
-    .edit-btn { background-color: #ffc107; color: #fff; }
-    .edit-btn:hover { background-color: #e0a800; }
-    .delete-btn { background-color: #dc3545; color: #fff; }
-    .delete-btn:hover { background-color: #c82333; }
-    .remove-photo-btn { background-color: #6c757d; color: #fff; }
-    .remove-photo-btn:hover { background-color: #5a6268; }
-    .thumbnail { max-width: 80px; max-height: 80px; margin-top: 5px; border-radius: 4px; object-fit: cover; cursor: pointer; }
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+h1 { text-align: center; color: #333; }
+a { margin-bottom: 20px; display: inline-block; text-decoration: none; color: #007bff; }
+a:hover { text-decoration: underline; }
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 400px;
+    margin-bottom: 20px;
+}
+input, button, textarea { padding: 8px; font-size: 14px; border-radius: 6px; border: 1px solid #ccc; }
+button { cursor: pointer; background-color: #007bff; color: #fff; border: none; }
+button:hover { background-color: #0056b3; }
+ul { list-style: none; padding: 0; width: 100%; max-width: 400px; }
+li { background: #fff; padding: 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: flex-start; }
+.description { font-size: 13px; color: #444; margin: 2px 0; }
+.datetime { font-size: 12px; color: #666; margin-top: 4px; }
+.buttons { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+.edit-btn, .delete-btn, .remove-photo-btn { padding: 4px 8px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; }
+.edit-btn { background-color: #ffc107; color: #fff; }
+.edit-btn:hover { background-color: #e0a800; }
+.delete-btn { background-color: #dc3545; color: #fff; }
+.delete-btn:hover { background-color: #c82333; }
+.remove-photo-btn { background-color: #6c757d; color: #fff; }
+.remove-photo-btn:hover { background-color: #5a6268; }
+.thumbnail { max-width: 80px; max-height: 80px; margin-top: 5px; border-radius: 4px; object-fit: cover; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -85,7 +85,7 @@ const eventsList = document.getElementById('eventsList');
 const photoInput = document.getElementById('eventPhoto');
 let editKey = null;
 
-// --- Аутентификация ---
+// Анонимная аутентификация
 signInAnonymously(auth)
     .then(() => console.log("Анонимный вход выполнен"))
     .catch(err => console.error("Ошибка аутентификации:", err));
@@ -95,7 +95,7 @@ onAuthStateChanged(auth, user => {
     else console.log("Пользователь вышел");
 });
 
-// --- Функция сжатия изображения ---
+// Функция сжатия изображения
 function resizeImage(file, maxWidth, maxHeight, quality=0.7){
     return new Promise((resolve, reject)=>{
         const reader = new FileReader();
@@ -126,20 +126,20 @@ function resizeImage(file, maxWidth, maxHeight, quality=0.7){
     });
 }
 
-// --- Добавление/редактирование события ---
-form.addEventListener('submit', async e=>{
+// Добавление / редактирование события
+form.addEventListener('submit', async e => {
     e.preventDefault();
     const name = document.getElementById('eventName').value.trim();
     const description = document.getElementById('eventDescription').value.trim();
     const datetime = document.getElementById('eventDateTime').value;
-    if(!name || !datetime) return;
+    if (!name || !datetime) return;
 
+    const file = photoInput.files[0];
     let photoURL = null;
     let thumbURL = null;
-    const file = photoInput.files[0];
 
     try {
-        if(file){
+        if (file){
             const resizedFull = await resizeImage(file, 1200, 1200);
             const resizedThumb = await resizeImage(file, 150, 150, 0.6);
             const safeName = file.name.replace(/\s+/g,'_').replace(/[^\w.-]/g,'');
@@ -152,7 +152,7 @@ form.addEventListener('submit', async e=>{
         }
 
         const eventData = { name, description, datetime };
-        if(file){ // только если выбран новый файл, добавляем фото
+        if(file){
             eventData.photoURL = photoURL;
             eventData.thumbURL = thumbURL;
         }
@@ -165,15 +165,15 @@ form.addEventListener('submit', async e=>{
         }
 
         form.reset();
-        photoInput.value = ''; // очищаем поле после добавления
+        photoInput.value = '';
     } catch(err){
-        alert("Ошибка при загрузке фото: "+err.message);
-        console.error("Ошибка загрузки фото:", err);
+        alert("Ошибка при загрузке фото: " + err.message);
+        console.error(err);
     }
 });
 
-// --- Отображение событий ---
-onValue(eventsRef, snapshot=>{
+// Отображение событий
+onValue(eventsRef, snapshot => {
     const data = snapshot.val();
     const entries = data ? Object.entries(data) : [];
     entries.sort((a,b)=>new Date(b[1].datetime)-new Date(a[1].datetime));
@@ -212,10 +212,10 @@ onValue(eventsRef, snapshot=>{
         editBtn.textContent='Редактировать';
         editBtn.className='edit-btn';
         editBtn.onclick = ()=>{
-            document.getElementById('eventName').value=item.name;
-            document.getElementById('eventDescription').value=item.description||'';
-            document.getElementById('eventDateTime').value=item.datetime;
-            photoInput.value=''; // не удаляем старое фото
+            document.getElementById('eventName').value = item.name;
+            document.getElementById('eventDescription').value = item.description||'';
+            document.getElementById('eventDateTime').value = item.datetime;
+            photoInput.value = '';
             editKey = key;
         };
 
@@ -231,9 +231,9 @@ onValue(eventsRef, snapshot=>{
         const removePhotoBtn = document.createElement('button');
         removePhotoBtn.textContent='Удалить фото';
         removePhotoBtn.className='remove-photo-btn';
-        removePhotoBtn.onclick=()=>{
+        removePhotoBtn.onclick = ()=>{
             if(confirm('Удалить фото этого события?')){
-                update(ref(db,'events/'+key),{photoURL:null,thumbURL:null});
+                update(ref(db,'events/'+key), { photoURL:null, thumbURL:null });
             }
         };
 
@@ -246,4 +246,6 @@ onValue(eventsRef, snapshot=>{
         eventsList.appendChild(li);
     });
 });
-</
+</script>
+</body>
+    </html>
