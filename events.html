@@ -62,7 +62,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
 import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
+// Firebase
 const app = initializeApp({
     apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDзZ-vd3Uauw",
     authDomain: "ds-nurce-bdc37.firebaseapp.com",
@@ -75,15 +77,25 @@ const app = initializeApp({
 
 const db = getDatabase(app);
 const storage = getStorage(app);
+const auth = getAuth(app);
 const eventsRef = ref(db, 'events');
 
 const form = document.getElementById('eventForm');
 const eventsList = document.getElementById('eventsList');
 const photoInput = document.getElementById('eventPhoto');
-
 let editKey = null;
 
-// функция сжатия изображения
+// --- Аутентификация ---
+signInAnonymously(auth)
+    .then(() => console.log("Анонимный вход выполнен"))
+    .catch(err => console.error("Ошибка аутентификации:", err));
+
+onAuthStateChanged(auth, user => {
+    if(user) console.log("Пользователь авторизован:", user.uid);
+    else console.log("Пользователь вышел");
+});
+
+// --- Функция сжатия изображения ---
 function resizeImage(file, maxWidth, maxHeight, quality=0.7){
     return new Promise((resolve, reject)=>{
         const reader = new FileReader();
@@ -114,6 +126,7 @@ function resizeImage(file, maxWidth, maxHeight, quality=0.7){
     });
 }
 
+// --- Добавление/редактирование события ---
 form.addEventListener('submit', async e=>{
     e.preventDefault();
     const name = document.getElementById('eventName').value.trim();
@@ -129,8 +142,9 @@ form.addEventListener('submit', async e=>{
         if(file){
             const resizedFull = await resizeImage(file, 1200, 1200);
             const resizedThumb = await resizeImage(file, 150, 150, 0.6);
-            const fullRef = storageRef(storage, `events_photos/full_${Date.now()}_${file.name}`);
-            const thumbRef = storageRef(storage, `events_photos/thumb_${Date.now()}_${file.name}`);
+            const safeName = file.name.replace(/\s+/g,'_').replace(/[^\w.-]/g,'');
+            const fullRef = storageRef(storage, `events_photos/full_${Date.now()}_${safeName}`);
+            const thumbRef = storageRef(storage, `events_photos/thumb_${Date.now()}_${safeName}`);
             await uploadBytes(fullRef, resizedFull);
             await uploadBytes(thumbRef, resizedThumb);
             photoURL = await getDownloadURL(fullRef);
@@ -151,10 +165,11 @@ form.addEventListener('submit', async e=>{
         form.reset();
     } catch(err){
         alert("Ошибка при загрузке фото: "+err.message);
-        console.error(err);
+        console.error("Ошибка загрузки фото:", err);
     }
 });
 
+// --- Отображение событий ---
 onValue(eventsRef, snapshot=>{
     const data = snapshot.val();
     const entries = data ? Object.entries(data) : [];
@@ -230,4 +245,4 @@ onValue(eventsRef, snapshot=>{
 });
 </script>
 </body>
-    </html>
+</html>
