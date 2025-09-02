@@ -291,7 +291,6 @@ if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
 async function initFCM() {
     try {
         const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
-        messaging.useServiceWorker(reg);
         const token = await getToken(messaging, { vapidKey: VAPID_KEY });
         console.log('FCM Token:', token);
         localStorage.setItem('fcmToken', token);
