@@ -3,236 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MidwifeApp</title>
-    <link rel="icon" type="image/png" href="favicon.png">
+    <title>Контроль параметров новорождённого</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f9f9f9;
-            margin: 0;
+            font-family: sans-serif;
+            max-width: 600px;
+            margin: auto;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            background: #f5f5f5;
         }
-        h1 { text-align: center; color: #333; }
-        .item {
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 8px;
+        .card {
+            background: white;
             padding: 15px;
-            margin: 10px 0;
-            width: 100%;
-            max-width: 400px;
-            display: flex;
-            align-items: center;
+            margin-bottom: 10px;
+            border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: background-color 0.3s, border-color 0.3s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .item.overdue { border-color: #ff0000; background-color: #ffecec; }
-        .item.done { border-color: #28a745; background-color: #e6f4ea; }
-        .icon { font-size: 24px; margin-right: 15px; color: #666; }
-        .content { flex: 1; }
-        .title { font-size: 18px; font-weight: bold; margin: 0; }
-        .description { font-size: 14px; color: #666; margin: 5px 0; }
-        .last-time { font-size: 12px; color: #888; }
+        .card.red {
+            background: #ffe6e6;
+        }
         button {
-            background-color: #007bff; color: white; border: none; border-radius: 20px;
-            padding: 8px 15px; font-size: 14px; cursor: pointer;
+            padding: 5px 10px;
         }
-        button:hover { background-color: #0056b3; }
-        #error-message { color: red; text-align: center; margin-top: 10px; }
-        #notifications-control { margin-top: 20px; font-size: 14px; }
+        .toggle-container {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+        .switch input { display: none; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0;
+            right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 26px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px; width: 20px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #4caf50;
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
     </style>
 </head>
 <body>
-    <h1>Потребности новорождённого — приоритет и частота</h1>
-    <div id="error-message"></div>
 
-    <div class="item" id="feeding">
-        <span class="icon">🍼</span>
-        <div class="content">
-            <p class="title">Кормление</p>
-            <p class="description">каждые 2-3 часа днём и ночью</p>
-            <p class="last-time">Последний раз: никогда</p>
+    <h1>Контроль параметров новорождённого</h1>
+
+    <div id="cards">
+        <div class="card" data-minutes="180">
+            <span>Кормление</span>
+            <span class="time">0 ч 0 мин</span>
+            <button onclick="resetTimer(this)">Сброс</button>
         </div>
-        <button onclick="markDone('feeding', 180)">Сделано сейчас</button>
+        <div class="card" data-minutes="240">
+            <span>Сон</span>
+            <span class="time">0 ч 0 мин</span>
+            <button onclick="resetTimer(this)">Сброс</button>
+        </div>
+        <div class="card" data-minutes="360">
+            <span>Переодевание</span>
+            <span class="time">0 ч 0 мин</span>
+            <button onclick="resetTimer(this)">Сброс</button>
+        </div>
     </div>
 
-    <div class="item" id="diaper">
-        <span class="icon">🩲</span>
-        <div class="content">
-            <p class="title">Подгузник</p>
-            <p class="description">каждые 2-4 часа</p>
-            <p class="last-time">Последний раз: никогда</p>
-        </div>
-        <button onclick="markDone('diaper', 240)">Сделано сейчас</button>
-    </div>
-
-    <div class="item" id="sleep">
-        <span class="icon">🌙</span>
-        <div class="content">
-            <p class="title">Сон</p>
-            <p class="description">в среднем 14-17 часов в сутки</p>
-            <p class="last-time">Последний раз: никогда</p>
-        </div>
-        <button onclick="markDone('sleep', 1440)">Сделано сейчас</button>
-    </div>
-
-    <div class="item" id="temperature">
-        <span class="icon">🌡️</span>
-        <div class="content">
-            <p class="title">Температура</p>
-            <p class="description">каждые 2-3 часа</p>
-            <p class="last-time">Последний раз: никогда</p>
-        </div>
-        <button onclick="markDone('temperature', 180)">Сделано сейчас</button>
-    </div>
-
-    <div class="item" id="burping">
-        <span class="icon">😊</span>
-        <div class="content">
-            <p class="title">Отрыжка</p>
-            <p class="description">после каждого кормления</p>
-            <p class="last-time">Последний раз: никогда</p>
-        </div>
-        <button onclick="markDone('burping', 180)">Сделано сейчас</button>
-    </div>
-
-    <div class="item" id="contact">
-        <span class="icon">✋</span>
-        <div class="content">
-            <p class="title">Контакт</p>
-            <p class="description">каждый день, многократно</p>
-            <p class="last-time">Последний раз: никогда</p>
-        </div>
-        <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
-    </div>
-
-    <div id="notifications-control">
-        <label>
-            <input type="radio" name="notifications" id="notifications-on" checked>
-            Уведомления включены
-        </label>
-        <label style="margin-left: 10px;">
-            <input type="radio" name="notifications" id="notifications-off">
-            Уведомления выключены
+    <div class="toggle-container">
+        <label>Уведомления</label>
+        <label class="switch">
+            <input type="checkbox" id="notifToggle">
+            <span class="slider"></span>
         </label>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+<script>
+    let timers = [];
+    let lastNotified = {};
+    const notifToggle = document.getElementById('notifToggle');
 
-        const errorMessage = document.getElementById('error-message');
+    // Восстанавливаем состояние переключателя
+    notifToggle.checked = localStorage.getItem('notificationsEnabled') === 'true';
 
-        const app = initializeApp({
-            apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
-            authDomain: "ds-nurce-bdc37.firebaseapp.com",
-            databaseURL: "https://ds-nurce-bdc37-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "ds-nurce-bdc37",
-            storageBucket: "ds-nurce-bdc37.appspot.com",
-            messagingSenderId: "725307523922",
-            appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
-        });
-
-        const db = getDatabase(app);
-
-        const items = [
-            { id: 'feeding', max: 180, message: 'Пора покормить!' },
-            { id: 'diaper', max: 240, message: 'Пора сменить подгузник!' },
-            { id: 'sleep', max: 1440, message: 'Пора поспать!' },
-            { id: 'temperature', max: 180, message: 'Проверьте температуру!' },
-            { id: 'burping', max: 180, message: 'Пора отрыгнуть!' },
-            { id: 'contact', max: 1440, message: 'Пора контактировать с малышом!' }
-        ];
-
-        let notificationsEnabled = true;
-
-        document.getElementById('notifications-on').addEventListener('change', () => notificationsEnabled = true);
-        document.getElementById('notifications-off').addEventListener('change', () => notificationsEnabled = false);
-
-        function formatTime(minutes) {
-            if (minutes < 60) return `${minutes} мин. назад`;
-            const h = Math.floor(minutes / 60);
-            const m = minutes % 60;
-            return m === 0 ? `${h} ч назад` : `${h} ч ${m} мин. назад`;
+    notifToggle.addEventListener('change', () => {
+        localStorage.setItem('notificationsEnabled', notifToggle.checked);
+        if (notifToggle.checked) {
+            requestNotificationPermission();
         }
+    });
 
-        function sendNotification(title) {
-            if (!notificationsEnabled || !("Notification" in window)) return;
-            if (Notification.permission === "granted") {
-                new Notification(title);
-            } else if (Notification.permission !== "denied") {
-                Notification.requestPermission().then(permission => {
-                    if (permission === "granted") new Notification(title);
-                });
+    function requestNotificationPermission() {
+        if ('Notification' in window) {
+            Notification.requestPermission();
+        }
+    }
+
+    function sendNotification(title) {
+        if (!notifToggle.checked) return;
+        if (Notification.permission === 'granted') {
+            new Notification(title);
+        }
+    }
+
+    function resetTimer(btn) {
+        const card = btn.parentElement;
+        const idx = [...document.querySelectorAll('.card')].indexOf(card);
+        timers[idx] = 0;
+        lastNotified[idx] = false;
+        updateCard(card, idx);
+    }
+
+    function updateCard(card, idx) {
+        const limit = parseInt(card.dataset.minutes);
+        const hours = Math.floor(timers[idx] / 60);
+        const minutes = timers[idx] % 60;
+        card.querySelector('.time').textContent = `${hours} ч ${minutes} мин`;
+
+        if (timers[idx] >= limit) {
+            card.classList.add('red');
+            if (!lastNotified[idx]) {
+                const title = `Пора ${card.querySelector('span').textContent.toLowerCase()}!`;
+                sendNotification(title);
+                lastNotified[idx] = true;
             }
+        } else {
+            card.classList.remove('red');
+            lastNotified[idx] = false;
         }
+    }
 
-        function updateTime(id, maxMinutes, timestamp) {
-            const item = document.getElementById(id);
-            const lastTimeElem = item.querySelector('.last-time');
-            let wasOverdue = item.classList.contains('overdue');
-
-            if (timestamp) {
-                const diff = Date.now() - timestamp;
-                const minutesAgo = Math.floor(diff / 60000);
-                lastTimeElem.textContent = `Последний раз: ${formatTime(minutesAgo)}`;
-                item.classList.remove('overdue', 'done');
-                if (minutesAgo > maxMinutes) {
-                    item.classList.add('overdue');
-                    if (!wasOverdue) sendNotification(items.find(i => i.id === id).message);
-                } else {
-                    item.classList.add('done');
-                }
-            } else {
-                lastTimeElem.textContent = 'Последний раз: никогда';
-                item.classList.add('overdue');
-                item.classList.remove('done');
-            }
-        }
-
-        window.markDone = function (id, maxMinutes) {
-            const now = Date.now();
-            set(ref(db, 'actions/' + id), { timestamp: now })
-                .catch(err => {
-                    console.error(err);
-                    errorMessage.textContent = `Ошибка записи: ${err.message}`;
-                });
-        };
-
-        items.forEach(item => {
-            const r = ref(db, 'actions/' + item.id);
-            onValue(r, snap => {
-                const data = snap.val();
-                updateTime(item.id, item.max, data ? data.timestamp : null);
-            }, err => {
-                console.error(err);
-                errorMessage.textContent = `Ошибка чтения: ${err.message}`;
-            });
+    function tick() {
+        document.querySelectorAll('.card').forEach((card, idx) => {
+            timers[idx]++;
+            updateCard(card, idx);
         });
+    }
 
-        setInterval(() => {
-            items.forEach(item => {
-                const el = document.getElementById(item.id);
-                const txt = el.querySelector('.last-time').textContent;
-                const match = txt.match(/(\d+) мин/);
-                if (match) {
-                    let m = parseInt(match[1]) + 1;
-                    el.querySelector('.last-time').textContent = `Последний раз: ${formatTime(m)}`;
-                    const max = items.find(i => i.id === el.id).max;
-                    let wasOverdue = el.classList.contains('overdue');
-                    el.classList.remove('overdue', 'done');
-                    if (m > max) {
-                        el.classList.add('overdue');
-                        if (!wasOverdue) sendNotification(items.find(i => i.id === el.id).message);
-                    } else {
-                        el.classList.add('done');
-                    }
-                }
-            });
-        }, 60000);
-    </script>
+    // Инициализация
+    document.querySelectorAll('.card').forEach((card, idx) => {
+        timers[idx] = 0;
+        lastNotified[idx] = false;
+    });
+
+    setInterval(tick, 60000); // каждую минуту
+
+    // Первый рендер
+    tick();
+</script>
+
 </body>
-                </html>
+</html>
