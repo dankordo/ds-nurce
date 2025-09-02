@@ -30,6 +30,7 @@ body.dark {
     --button-bg: #28a745;
     --button-hover-bg: #1c6e2a;
 }
+
 body {
     font-family: Arial, sans-serif;
     background-color: var(--bg-color);
@@ -41,6 +42,7 @@ body {
     align-items: center;
     transition: background-color 0.3s, color 0.3s;
 }
+
 h1 { text-align: center; color: var(--text-color); }
 
 .item {
@@ -56,13 +58,30 @@ h1 { text-align: center; color: var(--text-color); }
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     transition: background-color 0.3s, border-color 0.3s, color 0.3s;
 }
+
 .item.overdue { border-color: var(--item-overdue-border); background-color: var(--item-overdue-bg); }
 .item.done { border-color: var(--item-done-border); background-color: var(--item-done-bg); }
 
-.icon { font-size: 24px; margin-right: 15px; color: var(--text-color); }
+.icon {
+    font-size: 24px;
+    margin-right: 15px;
+    color: var(--text-color);
+}
+
 .content { flex: 1; }
-.title { font-size: 18px; font-weight: bold; margin: 0; color: var(--text-color); }
-.description, .last-time { font-size: 14px; color: var(--text-color); margin: 5px 0; }
+
+.title {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 0;
+    color: var(--text-color);
+}
+
+.description, .last-time {
+    font-size: 14px;
+    color: var(--text-color);
+    margin: 5px 0;
+}
 
 button {
     background-color: var(--button-bg);
@@ -74,10 +93,12 @@ button {
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s;
 }
+
 button:hover { background-color: var(--button-hover-bg); }
 
 #error-message { color: red; text-align: center; margin-top: 10px; }
 
+/* Toggle для уведомлений */
 #notifications-control, #theme-control {
     width: 100%;
     max-width: 400px;
@@ -87,8 +108,21 @@ button:hover { background-color: var(--button-hover-bg); }
     gap: 8px;
     margin-bottom: 20px;
 }
-.toggle { position: relative; width: 44px; height: 24px; }
+
+#notifications-control .toggle-label, #theme-control .toggle-label {
+    font-size: 14px;
+    color: var(--text-color);
+    user-select: none;
+}
+
+.toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+}
+
 .toggle input { display: none; }
+
 .toggle .slider {
     position: absolute;
     inset: 0;
@@ -96,6 +130,7 @@ button:hover { background-color: var(--button-hover-bg); }
     border-radius: 24px;
     transition: .2s;
 }
+
 .toggle .slider::after {
     content: "";
     position: absolute;
@@ -106,11 +141,21 @@ button:hover { background-color: var(--button-hover-bg); }
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     transition: .2s;
 }
+
 .toggle input:checked + .slider { background: #28a745; }
 .toggle input:checked + .slider::after { transform: translateX(20px); }
 
-#events-link { display: block; margin-bottom: 20px; text-decoration: none; color: var(--text-color); font-weight: bold; }
+/* Ссылка на events.html */
+#events-link {
+    display: block;
+    margin-bottom: 20px;
+    text-decoration: none;
+    color: var(--text-color);
+    font-weight: bold;
+}
+
 #events-link:hover { text-decoration: underline; }
+
 </style>
 </head>
 <body>
@@ -125,9 +170,9 @@ button:hover { background-color: var(--button-hover-bg); }
 
 <h1>Потребности новорождённого — приоритет и частота</h1>
 <a id="events-link" href="events.html">Список важных событий</a>
+
 <div id="error-message"></div>
 
-<!-- items -->
 <div class="item" id="feeding">
     <span class="icon">🍼</span>
     <div class="content">
@@ -137,6 +182,7 @@ button:hover { background-color: var(--button-hover-bg); }
     </div>
     <button onclick="markDone('feeding', 180)">Сделано сейчас</button>
 </div>
+
 <div class="item" id="diaper">
     <span class="icon">🩲</span>
     <div class="content">
@@ -146,6 +192,7 @@ button:hover { background-color: var(--button-hover-bg); }
     </div>
     <button onclick="markDone('diaper', 240)">Сделано сейчас</button>
 </div>
+
 <div class="item" id="sleep">
     <span class="icon">🌙</span>
     <div class="content">
@@ -155,6 +202,7 @@ button:hover { background-color: var(--button-hover-bg); }
     </div>
     <button onclick="markDone('sleep', 1440)">Сделано сейчас</button>
 </div>
+
 <div class="item" id="temperature">
     <span class="icon">🌡️</span>
     <div class="content">
@@ -164,6 +212,7 @@ button:hover { background-color: var(--button-hover-bg); }
     </div>
     <button onclick="markDone('temperature', 180)">Сделано сейчас</button>
 </div>
+
 <div class="item" id="burping">
     <span class="icon">😊</span>
     <div class="content">
@@ -173,6 +222,7 @@ button:hover { background-color: var(--button-hover-bg); }
     </div>
     <button onclick="markDone('burping', 180)">Сделано сейчас</button>
 </div>
+
 <div class="item" id="contact">
     <span class="icon">✋</span>
     <div class="content">
@@ -192,9 +242,12 @@ button:hover { background-color: var(--button-hover-bg); }
 </div>
 
 <script type="module">
+// --- Firebase ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
 import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-messaging.js";
+
+const errorMessage = document.getElementById('error-message');
 
 const app = initializeApp({
     apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDзZ-vd3Uauw",
@@ -208,7 +261,8 @@ const app = initializeApp({
 
 const db = getDatabase(app);
 const messaging = getMessaging(app);
-const errorMessage = document.getElementById('error-message');
+
+const VAPID_KEY = "BEp5FjaMusKOcJPBREZEad0ZWHMMyYAp0dl_6yeFaiNdqfrtWFJ_0lA0S5kU8usP_IJu0SkdsTrSkOsRzPGYKY4";
 
 const items = [
     { id: 'feeding', max: 180 },
@@ -218,6 +272,7 @@ const items = [
     { id: 'burping', max: 180 },
     { id: 'contact', max: 1440 }
 ];
+
 const timestamps = {};
 const notifiedState = {};
 
@@ -228,24 +283,20 @@ function formatTime(minutes) {
     return m === 0 ? `${h} ч назад` : `${h} ч ${m} мин. назад`;
 }
 
-// --- PUSH через FCM ---
+// --- Firebase Cloud Messaging вместо браузерных уведомлений ---
 const notificationsToggle = document.getElementById('notificationsToggle');
 let notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
 if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
 
-async function setupFCM() {
-    if (!notificationsEnabled) return;
-
+async function initFCM() {
     try {
-        const token = await getToken(messaging, {
-            vapidKey: "BEp5FjaMusKOcJPBREZEad0ZWHMMyYAp0dl_6yeFaiNdqfrtWFJ_0lA0S5kU8usP_IJu0SkdsTrSkOsRzPGYKY4"
-        });
-        if (token) {
-            console.log("FCM токен:", token);
-            await set(ref(db, 'fcmTokens/' + token), true);
-        }
+        const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        messaging.useServiceWorker(reg);
+        const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+        console.log('FCM Token:', token);
+        localStorage.setItem('fcmToken', token);
     } catch (err) {
-        console.error("Ошибка получения FCM токена:", err);
+        console.error('Ошибка уведомлений:', err);
         errorMessage.textContent = `Ошибка уведомлений: ${err.message}`;
     }
 }
@@ -254,7 +305,7 @@ notificationsToggle?.addEventListener('change', async () => {
     notificationsEnabled = notificationsToggle.checked;
     localStorage.setItem('notificationsEnabled', notificationsEnabled ? 'true' : 'false');
     if (notificationsEnabled) {
-        await setupFCM();
+        await initFCM();
     }
 });
 
@@ -269,18 +320,12 @@ function updateTime(id, maxMinutes, timestamp) {
         const minutesAgo = Math.floor(diff / 60000);
         lastTimeElem.textContent = `Последний раз: ${formatTime(minutesAgo)}`;
         item.classList.remove('overdue', 'done');
-        if (minutesAgo > maxMinutes) {
-            item.classList.add('overdue');
-            notifiedState[id] = false;
-        } else {
-            item.classList.add('done');
-            notifiedState[id] = false;
-        }
+        if (minutesAgo > maxMinutes) item.classList.add('overdue');
+        else item.classList.add('done');
     } else {
         lastTimeElem.textContent = 'Последний раз: никогда';
         item.classList.add('overdue');
         item.classList.remove('done');
-        notifiedState[id] = false;
     }
 }
 
@@ -299,6 +344,9 @@ items.forEach(item => {
         const data = snap.val();
         timestamps[item.id] = data ? data.timestamp : null;
         updateTime(item.id, item.max, timestamps[item.id]);
+    }, err => {
+        console.error(err);
+        errorMessage.textContent = `Ошибка чтения: ${err.message}`;
     });
 });
 
@@ -308,7 +356,7 @@ setInterval(() => {
     });
 }, 60000);
 
-// --- Тема ---
+// --- Переключение темы ---
 const themeToggle = document.getElementById('themeToggle');
 const savedTheme = localStorage.getItem('theme') || 'light';
 if (savedTheme === 'dark') document.body.classList.add('dark');
@@ -323,15 +371,6 @@ themeToggle?.addEventListener('change', () => {
         localStorage.setItem('theme', 'light');
     }
 });
-
-// --- регистрация service worker ---
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('firebase-messaging-sw.js')
-        .then(reg => console.log('Service Worker зарегистрирован', reg))
-        .catch(err => console.error('Ошибка регистрации SW', err));
-}
-
-setupFCM();
 </script>
 
 </body>
