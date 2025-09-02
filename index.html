@@ -43,7 +43,7 @@
         button:hover { background-color: #0056b3; }
         #error-message { color: red; text-align: center; margin-top: 10px; }
 
-        /* --- ДОБАВЛЕНО: небольшой toggle без изменения дизайна карточек --- */
+        /* Toggle для уведомлений */
         #notifications-control {
             width: 100%;
             max-width: 400px;
@@ -87,7 +87,6 @@
         .toggle input:checked + .slider::after {
             transform: translateX(20px);
         }
-        /* --- КОНЕЦ ДОБАВЛЕНИЙ CSS --- */
     </style>
 </head>
 <body>
@@ -154,7 +153,6 @@
         <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
     </div>
 
-    <!-- ДОБАВЛЕНО: переключатель уведомлений -->
     <div id="notifications-control" aria-label="Переключатель уведомлений">
         <span class="toggle-label">Уведомления</span>
         <label class="toggle">
@@ -162,7 +160,6 @@
             <span class="slider" aria-hidden="true"></span>
         </label>
     </div>
-    <!-- КОНЕЦ ДОБАВЛЕНИЙ -->
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
@@ -191,6 +188,9 @@
             { id: 'contact', max: 1440 }
         ];
 
+        const timestamps = {}; // хранение последних отметок времени
+        const notifiedState = {}; // уведомления для текущей "красной" фазы
+
         function formatTime(minutes) {
             if (minutes < 60) return `${minutes} мин. назад`;
             const h = Math.floor(minutes / 60);
@@ -198,20 +198,13 @@
             return m === 0 ? `${h} ч назад` : `${h} ч ${m} мин. назад`;
         }
 
-        /* --- ДОБАВЛЕНО: уведомления --- */
         const notificationsToggle = document.getElementById('notificationsToggle');
         let notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
-        const notifiedState = {}; // { [id]: boolean } — уже уведомлён для текущей "красной" фазы
-
-        if (notificationsToggle) {
-            notificationsToggle.checked = notificationsEnabled;
-        }
+        if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
 
         function ensureNotificationPermission() {
             if (!('Notification' in window)) return;
-            if (Notification.permission === 'default') {
-                Notification.requestPermission().catch(() => {});
-            }
+            if (Notification.permission === 'default') Notification.requestPermission().catch(()=>{});
         }
 
         function sendNotificationFor(id) {
@@ -219,22 +212,15 @@
             if (Notification.permission !== 'granted') return;
             const item = document.getElementById(id);
             if (!item) return;
-            const titleEl = item.querySelector('.title');
-            const name = titleEl ? titleEl.textContent.trim() : id;
-            try {
-                new Notification(`Пора ${name}!`);
-            } catch(e) {
-                // тихо игнорируем, чтобы не ломать UX
-            }
+            const name = item.querySelector('.title')?.textContent.trim() || id;
+            try { new Notification(`Пора ${name}!`); } catch(e){}
         }
 
         function immediateOverdueCheck() {
-            // пройдём по всем элементам и, если уже красные и не уведомляли — уведомим
             items.forEach(it => {
                 const el = document.getElementById(it.id);
                 if (!el) return;
-                const isOverdue = el.classList.contains('overdue');
-                if (isOverdue && !notifiedState[it.id]) {
+                if (el.classList.contains('overdue') && !notifiedState[it.id]) {
                     sendNotificationFor(it.id);
                     notifiedState[it.id] = true;
                 }
@@ -246,17 +232,13 @@
             localStorage.setItem('notificationsEnabled', notificationsEnabled ? 'true' : 'false');
             if (notificationsEnabled) {
                 ensureNotificationPermission();
-                // Сразу проверить и уведомить, если есть уже красные
                 immediateOverdueCheck();
             }
         });
-        /* --- КОНЕЦ ДОБАВЛЕНИЙ уведомлений --- */
 
         function updateTime(id, maxMinutes, timestamp) {
             const item = document.getElementById(id);
             const lastTimeElem = item.querySelector('.last-time');
-
-            // ДОБАВЛЕНО: запомним прежнее "красное" состояние
             const wasOverdue = item.classList.contains('overdue');
 
             if (timestamp) {
@@ -266,21 +248,18 @@
                 item.classList.remove('overdue', 'done');
                 if (minutesAgo > maxMinutes) {
                     item.classList.add('overdue');
-                    // ДОБАВЛЕНО: уведомление при переходе в "красное"
                     if (!wasOverdue && !notifiedState[id]) {
                         sendNotificationFor(id);
                         notifiedState[id] = true;
                     }
                 } else {
                     item.classList.add('done');
-                    // сброс флага, чтобы в следующий раз снова уведомить при новом переходе
                     notifiedState[id] = false;
                 }
             } else {
                 lastTimeElem.textContent = 'Последний раз: никогда';
                 item.classList.add('overdue');
                 item.classList.remove('done');
-                // ДОБАВЛЕНО: если уже красный и разрешено — уведомить (однократно)
                 if (!wasOverdue && !notifiedState[id]) {
                     sendNotificationFor(id);
                     notifiedState[id] = true;
@@ -288,7 +267,7 @@
             }
         }
 
-        window.markDone = function (id, maxMinutes) {
+        window.markDone = function(id, maxMinutes) {
             const now = Date.now();
             set(ref(db, 'actions/' + id), { timestamp: now })
                 .catch(err => {
@@ -297,76 +276,28 @@
                 });
         };
 
-        // Подписка на изменения
+        // Подписка на Firebase и сохранение timestamp
         items.forEach(item => {
             const r = ref(db, 'actions/' + item.id);
             onValue(r, snap => {
                 const data = snap.val();
-                updateTime(item.id, item.max, data ? data.timestamp : null);
+                timestamps[item.id] = data ? data.timestamp : null;
+                updateTime(item.id, item.max, timestamps[item.id]);
             }, err => {
                 console.error(err);
                 errorMessage.textContent = `Ошибка чтения: ${err.message}`;
             });
         });
 
-        // Локальное обновление счётчика минут
+        // Локальное обновление каждую минуту
         setInterval(() => {
             items.forEach(item => {
-                const el = document.getElementById(item.id);
-                const txt = el.querySelector('.last-time').textContent;
-
-                // ДОБАВЛЕНО: прежнее состояние до обновления
-                const wasOverdue = el.classList.contains('overdue');
-
-                const match = txt.match(/(\d+) мин/);
-                if (match) {
-                    let m = parseInt(match[1]) + 1;
-                    el.querySelector('.last-time').textContent = `Последний раз: ${formatTime(m)}`;
-                    el.classList.remove('overdue', 'done');
-                    const max = items.find(i => i.id === el.id).max;
-                    if (m > max) {
-                        el.classList.add('overdue');
-                        if (!wasOverdue && !notifiedState[item.id]) {
-                            sendNotificationFor(item.id);
-                            notifiedState[item.id] = true;
-                        }
-                    } else {
-                        el.classList.add('done');
-                        notifiedState[item.id] = false;
-                    }
-                } else if (txt.includes('ч')) {
-                    // Обновляем часы
-                    const timeMatch = txt.match(/(\d+) ч(?: (\d+) мин)?/);
-                    if (timeMatch) {
-                        let hours = parseInt(timeMatch[1]);
-                        let minutes = parseInt(timeMatch[2] || 0) + 1;
-                        if (minutes >= 60) {
-                            hours += 1;
-                            minutes -= 60;
-                        }
-                        const totalMinutes = hours * 60 + minutes;
-                        el.querySelector('.last-time').textContent = `Последний раз: ${formatTime(totalMinutes)}`;
-                        const max = items.find(i => i.id === el.id).max;
-                        el.classList.remove('overdue', 'done');
-                        if (totalMinutes > max) {
-                            el.classList.add('overdue');
-                            if (!wasOverdue && !notifiedState[item.id]) {
-                                sendNotificationFor(item.id);
-                                notifiedState[item.id] = true;
-                            }
-                        } else {
-                            el.classList.add('done');
-                            notifiedState[item.id] = false;
-                        }
-                    }
-                }
+                updateTime(item.id, item.max, timestamps[item.id]);
             });
         }, 60000);
 
-        // При первом открытии: если toggle был включён ранее — запросить разрешение и проверить наличие "красных"
         if (notificationsEnabled) {
             ensureNotificationPermission();
-            // небольшая задержка, чтобы успели подтянуться значения из onValue и примениться классы
             setTimeout(() => immediateOverdueCheck(), 300);
         }
     </script>
