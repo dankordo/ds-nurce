@@ -30,8 +30,14 @@
         button { cursor: pointer; background-color: #007bff; color: #fff; border: none; }
         button:hover { background-color: #0056b3; }
         ul { list-style: none; padding: 0; width: 100%; max-width: 400px; }
-        li { background: #fff; padding: 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid #ddd; }
-        .datetime { font-size: 12px; color: #666; }
+        li { background: #fff; padding: 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .datetime { font-size: 12px; color: #666; margin-top: 4px; }
+        .buttons { display: flex; gap: 5px; }
+        .edit-btn, .delete-btn { padding: 4px 8px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; }
+        .edit-btn { background-color: #ffc107; color: #fff; }
+        .edit-btn:hover { background-color: #e0a800; }
+        .delete-btn { background-color: #dc3545; color: #fff; }
+        .delete-btn:hover { background-color: #c82333; }
     </style>
 </head>
 <body>
@@ -48,7 +54,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+        import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
         const app = initializeApp({
             apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDзZ-vd3Uauw",
@@ -66,23 +72,62 @@
         const form = document.getElementById('eventForm');
         const eventsList = document.getElementById('eventsList');
 
+        let editKey = null; // ключ события для редактирования
+
         form.addEventListener('submit', e => {
             e.preventDefault();
             const name = document.getElementById('eventName').value.trim();
             const datetime = document.getElementById('eventDateTime').value;
             if (!name || !datetime) return;
-            push(eventsRef, { name, datetime });
+
+            if (editKey) {
+                const eventRef = ref(db, 'events/' + editKey);
+                update(eventRef, { name, datetime });
+                editKey = null;
+            } else {
+                push(eventsRef, { name, datetime });
+            }
             form.reset();
         });
 
         onValue(eventsRef, snapshot => {
             const data = snapshot.val();
-            const items = data ? Object.values(data) : [];
-            items.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+            const entries = data ? Object.entries(data) : [];
+            entries.sort((a, b) => new Date(b[1].datetime) - new Date(a[1].datetime));
             eventsList.innerHTML = '';
-            items.forEach(item => {
+            entries.forEach(([key, item]) => {
                 const li = document.createElement('li');
-                li.innerHTML = `<strong>${item.name}</strong><div class="datetime">${item.datetime.replace('T', ' ')}</div>`;
+
+                const contentDiv = document.createElement('div');
+                contentDiv.innerHTML = `<strong>${item.name}</strong><div class="datetime">${item.datetime.replace('T', ' ')}</div>`;
+
+                const btnsDiv = document.createElement('div');
+                btnsDiv.className = 'buttons';
+
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Редактировать';
+                editBtn.className = 'edit-btn';
+                editBtn.onclick = () => {
+                    document.getElementById('eventName').value = item.name;
+                    document.getElementById('eventDateTime').value = item.datetime;
+                    editKey = key;
+                };
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Удалить';
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.onclick = () => {
+                    if (confirm(`Удалить событие "${item.name}"?`)) {
+                        remove(ref(db, 'events/' + key));
+                    }
+                };
+
+                btnsDiv.appendChild(editBtn);
+                btnsDiv.appendChild(deleteBtn);
+
+                li.appendChild(contentDiv);
+                li.appendChild(btnsDiv);
+
                 eventsList.appendChild(li);
             });
         });
