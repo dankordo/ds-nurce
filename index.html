@@ -151,4 +151,258 @@ button:hover { background-color: var(--button-hover-bg); }
     margin-bottom: 20px;
     text-decoration: none;
     color: var(--text-color);
-    font
+    font-weight: bold;
+}
+
+#events-link:hover { text-decoration: underline; }
+
+</style>
+</head>
+<body>
+
+<div id="theme-control" aria-label="Переключатель темы">
+    <span class="toggle-label">Ночная тема</span>
+    <label class="toggle">
+        <input type="checkbox" id="themeToggle">
+        <span class="slider" aria-hidden="true"></span>
+    </label>
+</div>
+
+<h1>Потребности новорождённого — приоритет и частота</h1>
+<a id="events-link" href="events.html">Список важных событий</a>
+
+<div id="error-message"></div>
+
+<div class="item" id="feeding">
+    <span class="icon">🍼</span>
+    <div class="content">
+        <p class="title">Кормление</p>
+        <p class="description">каждые 2-3 часа днём и ночью</p>
+        <p class="last-time">Последний раз: никогда</p>
+    </div>
+    <button onclick="markDone('feeding', 180)">Сделано сейчас</button>
+</div>
+
+<div class="item" id="diaper">
+    <span class="icon">🩲</span>
+    <div class="content">
+        <p class="title">Подгузник</p>
+        <p class="description">каждые 2-4 часа</p>
+        <p class="last-time">Последний раз: никогда</p>
+    </div>
+    <button onclick="markDone('diaper', 240)">Сделано сейчас</button>
+</div>
+
+<div class="item" id="sleep">
+    <span class="icon">🌙</span>
+    <div class="content">
+        <p class="title">Сон</p>
+        <p class="description">в среднем 14-17 часов в сутки</p>
+        <p class="last-time">Последний раз: никогда</p>
+    </div>
+    <button onclick="markDone('sleep', 1440)">Сделано сейчас</button>
+</div>
+
+<div class="item" id="temperature">
+    <span class="icon">🌡️</span>
+    <div class="content">
+        <p class="title">Температура</p>
+        <p class="description">каждые 2-3 часа</p>
+        <p class="last-time">Последний раз: никогда</p>
+    </div>
+    <button onclick="markDone('temperature', 180)">Сделано сейчас</button>
+</div>
+
+<div class="item" id="burping">
+    <span class="icon">😊</span>
+    <div class="content">
+        <p class="title">Отрыжка</p>
+        <p class="description">после каждого кормления</p>
+        <p class="last-time">Последний раз: никогда</p>
+    </div>
+    <button onclick="markDone('burping', 180)">Сделано сейчас</button>
+</div>
+
+<div class="item" id="contact">
+    <span class="icon">✋</span>
+    <div class="content">
+        <p class="title">Контакт</p>
+        <p class="description">каждый день, многократно</p>
+        <p class="last-time">Последний раз: никогда</p>
+    </div>
+    <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
+</div>
+
+<div id="notifications-control" aria-label="Переключатель уведомлений">
+    <span class="toggle-label">Уведомления</span>
+    <label class="toggle">
+        <input type="checkbox" id="notificationsToggle">
+        <span class="slider" aria-hidden="true"></span>
+    </label>
+</div>
+
+<script type="module">
+// --- Firebase ---
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-messaging.js";
+
+const errorMessage = document.getElementById('error-message');
+
+// --- Firebase config ---
+const firebaseConfig = {
+    apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
+    authDomain: "ds-nurce-bdc37.firebaseapp.com",
+    projectId: "ds-nurce-bdc37",
+    storageBucket: "ds-nurce-bdc37.appspot.com",
+    messagingSenderId: "725307523922",
+    appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
+};
+
+// Public VAPID Key (Web Push certificate)
+const VAPID_KEY = "BEp5FjaMusKOcJPBREZEad0ZWHMMyYAp0dl_6yeFaiNdqfrtWFJ_0lA0S5kU8usP_IJu0SkdsTrSkOsRzPGYKY4";
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const messaging = getMessaging(app);
+
+// ====== Тема: сохранение и восстановление ======
+const THEME_KEY = 'mw_theme';
+const themeToggle = document.getElementById('themeToggle');
+
+function applyThemeFromStorage() {
+  const saved = localStorage.getItem(THEME_KEY);
+  const isDark = saved === 'dark';
+  document.body.classList.toggle('dark', isDark);
+  themeToggle.checked = isDark;
+}
+applyThemeFromStorage();
+
+themeToggle.addEventListener('change', (e) => {
+  const isDark = e.target.checked;
+  document.body.classList.toggle('dark', isDark);
+  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+});
+
+// ====== Статусы "Последний раз: ЧЧ:ММ" с сохранением ======
+const TASKS = {
+  feeding: 180,
+  diaper: 240,
+  sleep: 1440,
+  temperature: 180,
+  burping: 180,
+  contact: 1440
+};
+const LAST_KEY = 'mw_lastTimes';
+
+function readLastMap() {
+  try { return JSON.parse(localStorage.getItem(LAST_KEY)) || {}; }
+  catch { return {}; }
+}
+function writeLastMap(map) {
+  localStorage.setItem(LAST_KEY, JSON.stringify(map));
+}
+function hhmm(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+function setLastText(id, ts) {
+  const el = document.querySelector(`#${id} .last-time`);
+  if (!el) return;
+  if (!ts) el.textContent = 'Последний раз: никогда';
+  else el.textContent = 'Последний раз: ' + hhmm(ts);
+}
+function refreshOverdue() {
+  const map = readLastMap();
+  const now = Date.now();
+  Object.entries(TASKS).forEach(([id, minutes]) => {
+    const item = document.getElementById(id);
+    if (!item) return;
+    const ts = map[id];
+    if (!ts) { item.classList.remove('overdue'); return; }
+    const diffMin = Math.floor((now - ts) / 60000);
+    if (diffMin >= minutes) item.classList.add('overdue');
+    else item.classList.remove('overdue');
+  });
+}
+function restoreAll() {
+  const map = readLastMap();
+  Object.keys(TASKS).forEach(id => setLastText(id, map[id]));
+  refreshOverdue();
+}
+restoreAll();
+setInterval(refreshOverdue, 60_000);
+
+// Глобальная функция (кнопки уже ссылаются на неё)
+function markDone(id, minutes) {
+  const map = readLastMap();
+  const ts = Date.now();
+  map[id] = ts;
+  writeLastMap(map);
+  setLastText(id, ts);
+
+  const item = document.getElementById(id);
+  if (item) {
+    item.classList.remove('overdue');
+    item.classList.add('done');
+    setTimeout(() => item.classList.remove('done'), 2000);
+  }
+}
+window.markDone = markDone;
+
+// ====== Уведомления ======
+async function saveTokenToDatabase(token) {
+  try {
+    await set(ref(db, 'fcmTokens/' + token), { createdAt: Date.now() });
+  } catch (e) {
+    console.warn('Failed to save token: ', e);
+  }
+}
+
+async function registerSwAndGetToken() {
+  if (!('serviceWorker' in navigator)) {
+    errorMessage.textContent = 'Service Worker не поддерживается в этом браузере.';
+    return;
+  }
+  try {
+    // Важно: относительный путь — sw лежит рядом с index.html
+    const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      errorMessage.textContent = 'Разрешение на уведомления не предоставлено.';
+      return;
+    }
+    const options = { serviceWorkerRegistration: registration, vapidKey: VAPID_KEY };
+    const currentToken = await getToken(messaging, options);
+    if (currentToken) {
+      await saveTokenToDatabase(currentToken);
+      document.getElementById('notificationsToggle').checked = true;
+    } else {
+      console.warn('Не удалось получить токен.');
+    }
+  } catch (err) {
+    console.error('Ошибка уведомлений:', err);
+    errorMessage.textContent = 'Ошибка уведомлений: ' + (err?.message || err);
+  }
+}
+
+onMessage(messaging, (payload) => {
+  // Сообщения при открытой вкладке — по желанию можно заменить alert на свой toast
+  if (payload?.notification?.title) {
+    alert(`Уведомление: ${payload.notification.title}\n${payload.notification.body || ''}`);
+  }
+});
+
+const notificationsToggle = document.getElementById('notificationsToggle');
+notificationsToggle.addEventListener('change', async (e) => {
+  if (e.target.checked) await registerSwAndGetToken();
+  else errorMessage.textContent = ''; // локальное выключение
+});
+
+// Если разрешение уже дано — активируем сразу
+if (Notification.permission === 'granted') {
+  registerSwAndGetToken().catch(() => {});
+}
+</script>
+</body>
+</html>
