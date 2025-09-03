@@ -249,7 +249,7 @@ import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/fireb
 
 const errorMessage = document.getElementById('error-message');
 
-// --- Firebase config ---
+// --- Firebase config (вставлено) ---
 const firebaseConfig = {
     apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
     authDomain: "ds-nurce-bdc37.firebaseapp.com",
@@ -284,7 +284,7 @@ themeToggle.addEventListener('change', (e) => {
   localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
 });
 
-// ====== Статусы "Последний раз: ЧЧ:ММ" с сохранением ======
+// ====== Статусы "N часов M минут назад" с сохранением ======
 const TASKS = {
   feeding: 180,
   diaper: 240,
@@ -294,6 +294,7 @@ const TASKS = {
   contact: 1440
 };
 const LAST_KEY = 'mw_lastTimes';
+const NOTIFIED_KEY = 'mw_notified'; // хранит для какого last-timestamp уже отправлено уведомление
 
 function readLastMap() {
   try { return JSON.parse(localStorage.getItem(LAST_KEY)) || {}; }
@@ -302,44 +303,154 @@ function readLastMap() {
 function writeLastMap(map) {
   localStorage.setItem(LAST_KEY, JSON.stringify(map));
 }
-function hhmm(ts) {
-  const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+function readNotifiedMap() {
+  try { return JSON.parse(localStorage.getItem(NOTIFIED_KEY)) || {}; }
+  catch { return {}; }
 }
+function writeNotifiedMap(map) {
+  localStorage.setItem(NOTIFIED_KEY, JSON.stringify(map));
+}
+
+// правильные русские формы
+function decl(n, [one, two, five]) {
+  n = Math.abs(n) % 100;
+  const n1 = n % 10;
+  if (n > 10 && n < 20) return five;
+  if (n1 > 1 && n1 < 5) return two;
+  if (n1 === 1) return one;
+  return five;
+}
+
+// форматирует прошедшее время: "2 часа 5 минут назад" или "5 минут назад" или "менее минуты назад"
+function formatElapsed(ms) {
+  const totalMin = Math.floor(ms / 60000);
+  if (totalMin <= 0) return 'менее минуты назад';
+  const hours = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  const parts = [];
+  if (hours > 0) parts.push(`${hours} ${decl(hours, ['час', 'часа', 'часов'])}`);
+  if (mins > 0) parts.push(`${mins} ${decl(mins, ['минута', 'минуты', 'минут'])}`);
+  return parts.join(' ') + ' назад';
+}
+
 function setLastText(id, ts) {
   const el = document.querySelector(`#${id} .last-time`);
   if (!el) return;
   if (!ts) el.textContent = 'Последний раз: никогда';
-  else el.textContent = 'Последний раз: ' + hhmm(ts);
+  else {
+    const elapsed = Date.now() - ts;
+    el.textContent = 'Последний раз: ' + formatElapsed(elapsed);
+  }
 }
+
+// ====== Overdue + уведомления при переходе в overdue ======
+let swRegistration = null;
+async function ensureSWRegistration() {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (existing) { swRegistration = existing; return swRegistration; }
+  } catch (e) { /* ignore */ }
+  try {
+    swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+    console.log('Service Worker registered for overdue-notify:', swRegistration.scope);
+    return swRegistration;
+  } catch (e) {
+    console.warn('SW register failed (overdue notify):', e);
+    try { swRegistration = await navigator.serviceWorker.getRegistration(); return swRegistration; } catch { return null; }
+  }
+}
+
+const prevOverdue = {}; // помним предыдущее состояние, чтобы вызвать нотификацию только при переходе
 function refreshOverdue() {
   const map = readLastMap();
   const now = Date.now();
+  const notifiedMap = readNotifiedMap();
+
   Object.entries(TASKS).forEach(([id, minutes]) => {
     const item = document.getElementById(id);
     if (!item) return;
     const ts = map[id];
-    if (!ts) { item.classList.remove('overdue'); return; }
+    if (!ts) {
+      item.classList.remove('overdue');
+      prevOverdue[id] = false;
+      return;
+    }
     const diffMin = Math.floor((now - ts) / 60000);
-    if (diffMin >= minutes) item.classList.add('overdue');
-    else item.classList.remove('overdue');
+    const isOverdue = diffMin >= minutes;
+    // переход в overdue
+    if (isOverdue && !prevOverdue[id]) {
+      // отправляем уведомление только если ещё не уведомляли для этого конкретного timestamp
+      if (String(notifiedMap[id]) !== String(ts)) {
+        notifyOverdue(id, ts, diffMin).catch(console.warn);
+        // отметим, что уведомили
+        notifiedMap[id] = ts;
+        writeNotifiedMap(notifiedMap);
+      }
+    }
+    // обновляем класс
+    if (isOverdue) item.classList.add('overdue'); else item.classList.remove('overdue');
+    prevOverdue[id] = isOverdue;
   });
 }
+
+// Восстановление текстов при загрузке
 function restoreAll() {
   const map = readLastMap();
   Object.keys(TASKS).forEach(id => setLastText(id, map[id]));
+  // установить prevOverdue без срабатывания нотификации (чтобы сразу не слить кучу нотификаций)
+  const now = Date.now();
+  Object.entries(TASKS).forEach(([id, minutes]) => {
+    const ts = map[id];
+    const diffMin = ts ? Math.floor((now - ts) / 60000) : 0;
+    prevOverdue[id] = ts ? (diffMin >= minutes) : false;
+  });
+  // покраснение и начальное отображение
   refreshOverdue();
 }
 restoreAll();
 setInterval(refreshOverdue, 60_000);
 
-// Глобальная функция (кнопки уже ссылаются на неё)
+// notifyOverdue: показывает системное уведомление (через SW если есть) и возвращает Promise
+async function notifyOverdue(id, ts, diffMin) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  // Заголовок и тело
+  const titleEl = document.querySelector(`#${id} .title`);
+  const title = titleEl ? titleEl.textContent : 'Внимание';
+  const elapsedText = formatElapsed(Date.now() - ts);
+  const body = `${title} — прошло ${elapsedText}.`;
+
+  // Попытка показать через service worker (если зарегистрирован)
+  const reg = await ensureSWRegistration();
+  if (reg && reg.showNotification) {
+    try {
+      await reg.showNotification(title, { body, icon: 'favicon.png', data: { id, ts } });
+      return;
+    } catch (e) {
+      console.warn('reg.showNotification failed:', e);
+    }
+  }
+  // fallback: через Notification API (будет работать, если страница в фоне/в фокусе)
+  try {
+    new Notification(title, { body, icon: 'favicon.png', data: { id, ts } });
+  } catch (e) {
+    console.warn('Notification fallback failed:', e);
+  }
+}
+
+// ====== Функция markDone: сохраняет timestamp, очищает флаг уведомления ======
 function markDone(id, minutes) {
   const map = readLastMap();
   const ts = Date.now();
   map[id] = ts;
   writeLastMap(map);
   setLastText(id, ts);
+
+  // убрать пометку notified — чтобы в следующий раз можно было снова получить нотификацию
+  const notifiedMap = readNotifiedMap();
+  if (notifiedMap[id]) { delete notifiedMap[id]; writeNotifiedMap(notifiedMap); }
 
   const item = document.getElementById(id);
   if (item) {
@@ -350,7 +461,7 @@ function markDone(id, minutes) {
 }
 window.markDone = markDone;
 
-// ====== Уведомления ======
+// ====== Уведомления: регистрация SW и получение токена, когда пользователь включает toggle ======
 async function saveTokenToDatabase(token) {
   try {
     await set(ref(db, 'fcmTokens/' + token), { createdAt: Date.now() });
@@ -365,8 +476,7 @@ async function registerSwAndGetToken() {
     return;
   }
   try {
-    // Важно: относительный путь — sw лежит рядом с index.html
-    const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+    const registration = await ensureSWRegistration();
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
       errorMessage.textContent = 'Разрешение на уведомления не предоставлено.';
@@ -387,7 +497,6 @@ async function registerSwAndGetToken() {
 }
 
 onMessage(messaging, (payload) => {
-  // Сообщения при открытой вкладке — по желанию можно заменить alert на свой toast
   if (payload?.notification?.title) {
     alert(`Уведомление: ${payload.notification.title}\n${payload.notification.body || ''}`);
   }
@@ -399,9 +508,9 @@ notificationsToggle.addEventListener('change', async (e) => {
   else errorMessage.textContent = ''; // локальное выключение
 });
 
-// Если разрешение уже дано — активируем сразу
+// Если ранее уже дали разрешение — предварительно регистрируем SW (чтобы уведомления от overdue могли показываться)
 if (Notification.permission === 'granted') {
-  registerSwAndGetToken().catch(() => {});
+  ensureSWRegistration().catch(()=>{});
 }
 </script>
 </body>
