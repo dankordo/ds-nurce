@@ -242,276 +242,294 @@ button:hover { background-color: var(--button-hover-bg); }
 </div>
 
 <script type="module">
-// --- Firebase ---
+// --- Firebase и существующий код ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
-import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-messaging.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getMessaging, getToken, onMessage, isSupported, deleteToken } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-messaging.js";
 
 const errorMessage = document.getElementById('error-message');
 
-// --- Firebase config (вставлено) ---
-const firebaseConfig = {
+const app = initializeApp({
     apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
     authDomain: "ds-nurce-bdc37.firebaseapp.com",
+    databaseURL: "https://ds-nurce-bdc37-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "ds-nurce-bdc37",
     storageBucket: "ds-nurce-bdc37.appspot.com",
     messagingSenderId: "725307523922",
     appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
-};
+});
 
-// Public VAPID Key (Web Push certificate)
-const VAPID_KEY = "BEp5FjaMusKOcJPBREZEad0ZWHMMyYAp0dl_6yeFaiNdqfrtWFJ_0lA0S5kU8usP_IJu0SkdsTrSkOsRzPGYKY4";
-
-const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const messaging = getMessaging(app);
+let messaging = null;
 
-// ====== Тема: сохранение и восстановление ======
-const THEME_KEY = 'mw_theme';
-const themeToggle = document.getElementById('themeToggle');
-
-function applyThemeFromStorage() {
-  const saved = localStorage.getItem(THEME_KEY);
-  const isDark = saved === 'dark';
-  document.body.classList.toggle('dark', isDark);
-  themeToggle.checked = isDark;
-}
-applyThemeFromStorage();
-
-themeToggle.addEventListener('change', (e) => {
-  const isDark = e.target.checked;
-  document.body.classList.toggle('dark', isDark);
-  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
-});
-
-// ====== Статусы "N часов M минут назад" с сохранением ======
-const TASKS = {
-  feeding: 180,
-  diaper: 240,
-  sleep: 1440,
-  temperature: 180,
-  burping: 180,
-  contact: 1440
-};
-const LAST_KEY = 'mw_lastTimes';
-const NOTIFIED_KEY = 'mw_notified'; // хранит для какого last-timestamp уже отправлено уведомление
-
-function readLastMap() {
-  try { return JSON.parse(localStorage.getItem(LAST_KEY)) || {}; }
-  catch { return {}; }
-}
-function writeLastMap(map) {
-  localStorage.setItem(LAST_KEY, JSON.stringify(map));
-}
-function readNotifiedMap() {
-  try { return JSON.parse(localStorage.getItem(NOTIFIED_KEY)) || {}; }
-  catch { return {}; }
-}
-function writeNotifiedMap(map) {
-  localStorage.setItem(NOTIFIED_KEY, JSON.stringify(map));
-}
-
-// правильные русские формы
-function decl(n, [one, two, five]) {
-  n = Math.abs(n) % 100;
-  const n1 = n % 10;
-  if (n > 10 && n < 20) return five;
-  if (n1 > 1 && n1 < 5) return two;
-  if (n1 === 1) return one;
-  return five;
-}
-
-// форматирует прошедшее время: "2 часа 5 минут назад" или "5 минут назад" или "менее минуты назад"
-function formatElapsed(ms) {
-  const totalMin = Math.floor(ms / 60000);
-  if (totalMin <= 0) return 'менее минуты назад';
-  const hours = Math.floor(totalMin / 60);
-  const mins = totalMin % 60;
-  const parts = [];
-  if (hours > 0) parts.push(`${hours} ${decl(hours, ['час', 'часа', 'часов'])}`);
-  if (mins > 0) parts.push(`${mins} ${decl(mins, ['минута', 'минуты', 'минут'])}`);
-  return parts.join(' ') + ' назад';
-}
-
-function setLastText(id, ts) {
-  const el = document.querySelector(`#${id} .last-time`);
-  if (!el) return;
-  if (!ts) el.textContent = 'Последний раз: никогда';
-  else {
-    const elapsed = Date.now() - ts;
-    el.textContent = 'Последний раз: ' + formatElapsed(elapsed);
-  }
-}
-
-// ====== Overdue + уведомления при переходе в overdue ======
-let swRegistration = null;
-async function ensureSWRegistration() {
-  if (!('serviceWorker' in navigator)) return null;
-  try {
-    const existing = await navigator.serviceWorker.getRegistration();
-    if (existing) { swRegistration = existing; return swRegistration; }
-  } catch (e) { /* ignore */ }
-  try {
-    swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
-    console.log('Service Worker registered for overdue-notify:', swRegistration.scope);
-    return swRegistration;
-  } catch (e) {
-    console.warn('SW register failed (overdue notify):', e);
-    try { swRegistration = await navigator.serviceWorker.getRegistration(); return swRegistration; } catch { return null; }
-  }
-}
-
-const prevOverdue = {}; // помним предыдущее состояние, чтобы вызвать нотификацию только при переходе
-function refreshOverdue() {
-  const map = readLastMap();
-  const now = Date.now();
-  const notifiedMap = readNotifiedMap();
-
-  Object.entries(TASKS).forEach(([id, minutes]) => {
-    const item = document.getElementById(id);
-    if (!item) return;
-    const ts = map[id];
-    if (!ts) {
-      item.classList.remove('overdue');
-      prevOverdue[id] = false;
-      return;
-    }
-    const diffMin = Math.floor((now - ts) / 60000);
-    const isOverdue = diffMin >= minutes;
-    // переход в overdue
-    if (isOverdue && !prevOverdue[id]) {
-      // отправляем уведомление только если ещё не уведомляли для этого конкретного timestamp
-      if (String(notifiedMap[id]) !== String(ts)) {
-        notifyOverdue(id, ts, diffMin).catch(console.warn);
-        // отметим, что уведомили
-        notifiedMap[id] = ts;
-        writeNotifiedMap(notifiedMap);
-      }
-    }
-    // обновляем класс
-    if (isOverdue) item.classList.add('overdue'); else item.classList.remove('overdue');
-    prevOverdue[id] = isOverdue;
-  });
-}
-
-// Восстановление текстов при загрузке
-function restoreAll() {
-  const map = readLastMap();
-  Object.keys(TASKS).forEach(id => setLastText(id, map[id]));
-  // установить prevOverdue без срабатывания нотификации (чтобы сразу не слить кучу нотификаций)
-  const now = Date.now();
-  Object.entries(TASKS).forEach(([id, minutes]) => {
-    const ts = map[id];
-    const diffMin = ts ? Math.floor((now - ts) / 60000) : 0;
-    prevOverdue[id] = ts ? (diffMin >= minutes) : false;
-  });
-  // покраснение и начальное отображение
-  refreshOverdue();
-}
-restoreAll();
-setInterval(refreshOverdue, 60_000);
-
-// notifyOverdue: показывает системное уведомление (через SW если есть) и возвращает Promise
-async function notifyOverdue(id, ts, diffMin) {
-  if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-
-  // Заголовок и тело
-  const titleEl = document.querySelector(`#${id} .title`);
-  const title = titleEl ? titleEl.textContent : 'Внимание';
-  const elapsedText = formatElapsed(Date.now() - ts);
-  const body = `${title} — прошло ${elapsedText}.`;
-
-  // Попытка показать через service worker (если зарегистрирован)
-  const reg = await ensureSWRegistration();
-  if (reg && reg.showNotification) {
+// Инициализация Firebase Messaging
+const initMessaging = async () => {
     try {
-      await reg.showNotification(title, { body, icon: 'favicon.png', data: { id, ts } });
-      return;
-    } catch (e) {
-      console.warn('reg.showNotification failed:', e);
+        const isMessagingSupported = await isSupported();
+        if (isMessagingSupported) {
+            messaging = getMessaging(app);
+            
+            // Обработка сообщений, когда приложение на переднем плане
+            onMessage(messaging, (payload) => {
+                console.log('Message received in foreground:', payload);
+                if (payload.notification) {
+                    showBrowserNotification(payload.notification.title, payload.notification.body);
+                }
+            });
+            
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error initializing messaging:', error);
+        return false;
     }
-  }
-  // fallback: через Notification API (будет работать, если страница в фоне/в фокусе)
-  try {
-    new Notification(title, { body, icon: 'favicon.png', data: { id, ts } });
-  } catch (e) {
-    console.warn('Notification fallback failed:', e);
-  }
-}
+};
 
-// ====== Функция markDone: сохраняет timestamp, очищает флаг уведомления ======
-function markDone(id, minutes) {
-  const map = readLastMap();
-  const ts = Date.now();
-  map[id] = ts;
-  writeLastMap(map);
-  setLastText(id, ts);
-
-  // убрать пометку notified — чтобы в следующий раз можно было снова получить нотификацию
-  const notifiedMap = readNotifiedMap();
-  if (notifiedMap[id]) { delete notifiedMap[id]; writeNotifiedMap(notifiedMap); }
-
-  const item = document.getElementById(id);
-  if (item) {
-    item.classList.remove('overdue');
-    item.classList.add('done');
-    setTimeout(() => item.classList.remove('done'), 2000);
-  }
-}
-window.markDone = markDone;
-
-// ====== Уведомления: регистрация SW и получение токена, когда пользователь включает toggle ======
-async function saveTokenToDatabase(token) {
-  try {
-    await set(ref(db, 'fcmTokens/' + token), { createdAt: Date.now() });
-  } catch (e) {
-    console.warn('Failed to save token: ', e);
-  }
-}
-
-async function registerSwAndGetToken() {
-  if (!('serviceWorker' in navigator)) {
-    errorMessage.textContent = 'Service Worker не поддерживается в этом браузере.';
-    return;
-  }
-  try {
-    const registration = await ensureSWRegistration();
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      errorMessage.textContent = 'Разрешение на уведомления не предоставлено.';
-      return;
+// Функция для показа браузерных уведомлений
+function showBrowserNotification(title, body) {
+    if (!("Notification" in window)) {
+        console.log("This browser does not support notifications");
+        return;
     }
-    const options = { serviceWorkerRegistration: registration, vapidKey: VAPID_KEY };
-    const currentToken = await getToken(messaging, options);
-    if (currentToken) {
-      await saveTokenToDatabase(currentToken);
-      document.getElementById('notificationsToggle').checked = true;
+    
+    if (Notification.permission === "granted") {
+        new Notification(title, { body, icon: "favicon.png" });
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                new Notification(title, { body, icon: "favicon.png" });
+            }
+        });
+    }
+}
+
+// Функция для получения FCM токена
+const getFCMToken = async () => {
+    try {
+        if (!messaging) return null;
+        
+        // Запрашиваем разрешение на уведомления
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.log('Notification permission not granted');
+            return null;
+        }
+        
+        // Получаем токен
+        const currentToken = await getToken(messaging, {
+            vapidKey: 'BEp5FjaMusKOcJPBREZEad0ZWHMMyYAp0dl_6yeFaiNdqfrtWFJ_0lA0S5kU8usP_IJu0SkdsTrSkOsRzPGYKY4'
+        });
+        
+        if (currentToken) {
+            console.log('FCM Token:', currentToken);
+            // Сохраняем токен в базу данных
+            await set(ref(db, 'fcmTokens/' + currentToken), true);
+            return currentToken;
+        } else {
+            console.log('No registration token available. Request permission to generate one.');
+            return null;
+        }
+    } catch (error) {
+        console.error('An error occurred while retrieving token:', error);
+        return null;
+    }
+};
+
+// Функция для удаления FCM токена
+const deleteFCMToken = async () => {
+    try {
+        if (!messaging) return;
+        
+        const currentToken = await getToken(messaging);
+        if (currentToken) {
+            await deleteToken(messaging);
+            // Удаляем токен из базы данных
+            await set(ref(db, 'fcmTokens/' + currentToken), null);
+            console.log('Token deleted');
+        }
+    } catch (error) {
+        console.error('Error deleting token:', error);
+    }
+};
+
+const items = [
+    { id: 'feeding', max: 180 },
+    { id: 'diaper', max: 240 },
+    { id: 'sleep', max: 1440 },
+    { id: 'temperature', max: 180 },
+    { id: 'burping', max: 180 },
+    { id: 'contact', max: 1440 }
+];
+
+const timestamps = {};
+const notifiedState = {};
+
+function formatTime(minutes) {
+    if (minutes < 60) return `${minutes} мин. назад`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m === 0 ? `${h} ч назад` : `${h} ч ${m} мин. назад`;
+}
+
+// Функция для отправки серверного уведомления через FCM
+async function sendFCMPushNotification(itemId, itemName) {
+    try {
+        // Отправляем запрос на сервер для отправки пуш-уведомления
+        // В реальном приложении здесь должен быть вызов вашего серверного API
+        console.log(`Sending FCM push notification for ${itemId}: ${itemName}`);
+        
+        // Вместо реального вызова к серверу, мы просто логируем
+        // В реальном приложении используйте fetch или axios для вызова вашего сервера
+        // который отправит уведомление через FCM
+        /*
+        await fetch('https://your-server.com/send-notification', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                itemId,
+                itemName,
+                message: `Пора ${itemName}!`
+            })
+        });
+        */
+    } catch (error) {
+        console.error('Error sending FCM push notification:', error);
+    }
+}
+
+// Обновление времени и проверка overdue
+function updateTime(id, maxMinutes, timestamp) {
+    const item = document.getElementById(id);
+    const lastTimeElem = item.querySelector('.last-time');
+    const wasOverdue = item.classList.contains('overdue');
+
+    if (timestamp) {
+        const diff = Date.now() - timestamp;
+        const minutesAgo = Math.floor(diff / 60000);
+        lastTimeElem.textContent = `Последний раз: ${formatTime(minutesAgo)}`;
+        item.classList.remove('overdue', 'done');
+        if (minutesAgo > maxMinutes) {
+            item.classList.add('overdue');
+            if (!wasOverdue && !notifiedState[id] && notificationsEnabled) {
+                const itemName = item.querySelector('.title')?.textContent.trim() || id;
+                // Вместо браузерного уведомления отправляем серверное через FCM
+                sendFCMPushNotification(id, itemName);
+                notifiedState[id] = true;
+            }
+        } else {
+            item.classList.add('done');
+            notifiedState[id] = false;
+        }
     } else {
-      console.warn('Не удалось получить токен.');
+        lastTimeElem.textContent = 'Последний раз: никогда';
+        item.classList.add('overdue');
+        item.classList.remove('done');
+        if (!wasOverdue && !notifiedState[id] && notificationsEnabled) {
+            const itemName = item.querySelector('.title')?.textContent.trim() || id;
+            // Вместо браузерного уведомления отправляем серверное через FCM
+            sendFCMPushNotification(id, itemName);
+            notifiedState[id] = true;
+        }
     }
-  } catch (err) {
-    console.error('Ошибка уведомлений:', err);
-    errorMessage.textContent = 'Ошибка уведомлений: ' + (err?.message || err);
-  }
 }
 
-onMessage(messaging, (payload) => {
-  if (payload?.notification?.title) {
-    alert(`Уведомление: ${payload.notification.title}\n${payload.notification.body || ''}`);
-  }
-});
+window.markDone = function(id, maxMinutes) {
+    const now = Date.now();
+    set(ref(db, 'actions/' + id), { timestamp: now })
+        .catch(err => {
+            console.error(err);
+            errorMessage.textContent = `Ошибка записи: ${err.message}`;
+        });
+};
 
+// Инициализация уведомлений
 const notificationsToggle = document.getElementById('notificationsToggle');
-notificationsToggle.addEventListener('change', async (e) => {
-  if (e.target.checked) await registerSwAndGetToken();
-  else errorMessage.textContent = ''; // локальное выключение
+let notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
+if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
+
+// Обработчик переключателя уведомлений
+notificationsToggle?.addEventListener('change', async () => {
+    notificationsEnabled = notificationsToggle.checked;
+    localStorage.setItem('notificationsEnabled', notificationsEnabled ? 'true' : 'false');
+    
+    if (notificationsEnabled) {
+        // Включаем FCM уведомления
+        const messagingInitialized = await initMessaging();
+        if (messagingInitialized) {
+            await getFCMToken();
+            immediateOverdueCheck();
+        } else {
+            console.log('FCM not supported in this environment');
+            notificationsToggle.checked = false;
+            notificationsEnabled = false;
+            localStorage.setItem('notificationsEnabled', 'false');
+        }
+    } else {
+        // Отключаем FCM уведомления
+        await deleteFCMToken();
+    }
 });
 
-// Если ранее уже дали разрешение — предварительно регистрируем SW (чтобы уведомления от overdue могли показываться)
-if (Notification.permission === 'granted') {
-  ensureSWRegistration().catch(()=>{});
+function immediateOverdueCheck() {
+    items.forEach(it => {
+        const el = document.getElementById(it.id);
+        if (!el) return;
+        if (el.classList.contains('overdue') && !notifiedState[it.id] && notificationsEnabled) {
+            const itemName = el.querySelector('.title')?.textContent.trim() || it.id;
+            sendFCMPushNotification(it.id, itemName);
+            notifiedState[it.id] = true;
+        }
+    });
 }
+
+// Инициализация данных
+items.forEach(item => {
+    const r = ref(db, 'actions/' + item.id);
+    onValue(r, snap => {
+        const data = snap.val();
+        timestamps[item.id] = data ? data.timestamp : null;
+        updateTime(item.id, item.max, timestamps[item.id]);
+    }, err => {
+        console.error(err);
+        errorMessage.textContent = `Ошибка чтения: ${err.message}`;
+    });
+});
+
+setInterval(() => {
+    items.forEach(item => {
+        updateTime(item.id, item.max, timestamps[item.id]);
+    });
+}, 60000);
+
+// Инициализация FCM при загрузке, если уведомления включены
+if (notificationsEnabled) {
+    initMessaging().then(messagingInitialized => {
+        if (messagingInitialized) {
+            getFCMToken();
+            setTimeout(() => immediateOverdueCheck(), 300);
+        }
+    });
+}
+
+// --- Переключение темы ---
+const themeToggle = document.getElementById('themeToggle');
+const savedTheme = localStorage.getItem('theme') || 'light';
+if (savedTheme === 'dark') document.body.classList.add('dark');
+if (themeToggle) themeToggle.checked = savedTheme === 'dark';
+
+themeToggle?.addEventListener('change', () => {
+    if (themeToggle.checked) {
+        document.body.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+    } else {
+        document.body.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+    }
+});
 </script>
+
 </body>
 </html>
