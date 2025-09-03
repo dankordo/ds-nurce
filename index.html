@@ -244,11 +244,118 @@ button:hover { background-color: var(--button-hover-bg); }
 <script type="module">
 // --- Firebase ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
-import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-messaging.js";
+import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-messaging.js";
 
 const errorMessage = document.getElementById('error-message');
 
-const app = initializeApp({
+// --- Firebase config (вставлено) ---
+const firebaseConfig = {
     apiKey: "AIzaSyBUUrP-CevoeDOsUZorjC6XDzZ-vd3Uauw",
-    authDomain: "
+    authDomain: "ds-nurce-bdc37.firebaseapp.com",
+    projectId: "ds-nurce-bdc37",
+    storageBucket: "ds-nurce-bdc37.appspot.com",
+    messagingSenderId: "725307523922",
+    appId: "1:725307523922:web:9bb5c6ae685e479719b08b"
+};
+
+// Public VAPID Key (Web Push certificate) — вставлено
+const VAPID_KEY = "BEp5FjaMusKOcJPBREZEad0ZWHMMyYAp0dl_6yeFaiNdqfrtWFJ_0lA0S5kU8usP_IJu0SkdsTrSkOsRzPGYKY4";
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const messaging = getMessaging(app);
+
+// Сохраняем токен в БД (опционально)
+async function saveTokenToDatabase(token) {
+  try {
+    await set(ref(db, 'fcmTokens/' + token), {
+      createdAt: Date.now()
+    });
+    console.log('Token saved to database');
+  } catch (e) {
+    console.warn('Failed to save token: ', e);
+  }
+}
+
+// Регистрация service worker и получение токена (используется относительный путь)
+async function registerSwAndGetToken() {
+  if (!('serviceWorker' in navigator)) {
+    errorMessage.textContent = 'Service Worker не поддерживается в этом браузере.';
+    return;
+  }
+
+  try {
+    // регистрация относительного пути (если файл рядом с index.html)
+    const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+    console.log('Service Worker registered with scope:', registration.scope);
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      errorMessage.textContent = 'Разрешение на уведомления не предоставлено.';
+      console.warn('Permission not granted for Notification');
+      return;
+    }
+
+    const options = { serviceWorkerRegistration: registration };
+    if (VAPID_KEY && VAPID_KEY.length > 10) options.vapidKey = VAPID_KEY;
+
+    const currentToken = await getToken(messaging, options);
+    if (currentToken) {
+      console.log('FCM token:', currentToken);
+      await saveTokenToDatabase(currentToken);
+      document.getElementById('notificationsToggle').checked = true;
+    } else {
+      console.warn('No registration token available.');
+    }
+  } catch (err) {
+    console.error('Error while registering service worker or getting token:', err);
+    errorMessage.textContent = 'Ошибка регистрации уведомлений: ' + (err && err.message ? err.message : err);
+  }
+}
+
+// Обработка сообщений в foreground
+onMessage(messaging, (payload) => {
+  console.log('Message received in foreground: ', payload);
+  // Можешь отображать UI-подсказку здесь
+  if (payload && payload.notification && payload.notification.title) {
+    // простая визуальная нотификация в UI (не системная)
+    alert(`Уведомление: ${payload.notification.title}\n${payload.notification.body || ''}`);
+  }
+});
+
+// Переключатель уведомлений
+const notificationsToggle = document.getElementById('notificationsToggle');
+notificationsToggle.addEventListener('change', async (e) => {
+  if (e.target.checked) {
+    await registerSwAndGetToken();
+  } else {
+    errorMessage.textContent = '';
+    console.log('Уведомления выключены (локально). Удаляй токен с сервера/БД если нужно.');
+  }
+});
+
+// Если ранее уже дали разрешение — сразу пытаемся зарегистрировать
+if (Notification.permission === 'granted') {
+  registerSwAndGetToken().catch(e => console.warn(e));
+}
+
+// UI: тема и markDone
+const themeToggle = document.getElementById('themeToggle');
+themeToggle.addEventListener('change', (e) => {
+  document.body.classList.toggle('dark', e.target.checked);
+});
+
+function markDone(id, minutes) {
+  const item = document.getElementById(id);
+  if (!item) return;
+  const last = item.querySelector('.last-time');
+  const d = new Date();
+  last.textContent = 'Последний раз: ' + d.toLocaleString();
+  item.classList.add('done');
+  setTimeout(()=> item.classList.remove('done'), 2000);
+}
+window.markDone = markDone;
+</script>
+</body>
+</html>
