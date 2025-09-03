@@ -262,9 +262,27 @@ const app = initializeApp({
 const db = getDatabase(app);
 let messaging = null;
 
+// Функция для регистрации сервис-воркера
+async function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        try {
+            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                scope: '/'
+            });
+            console.log('Service Worker registered with scope:', registration.scope);
+            return registration;
+        } catch (error) {
+            console.error('Service Worker registration failed:', error);
+            return null;
+        }
+    }
+    return null;
+}
+
 // Инициализация Firebase Messaging
 const initMessaging = async () => {
     try {
+        await registerServiceWorker();
         const isMessagingSupported = await isSupported();
         if (isMessagingSupported) {
             messaging = getMessaging(app);
@@ -324,7 +342,11 @@ const getFCMToken = async () => {
         if (currentToken) {
             console.log('FCM Token:', currentToken);
             // Сохраняем токен в базу данных
-            await set(ref(db, 'fcmTokens/' + currentToken), true);
+            await set(ref(db, 'fcmTokens/' + currentToken), {
+                token: currentToken,
+                timestamp: Date.now(),
+                enabled: true
+            });
             return currentToken;
         } else {
             console.log('No registration token available. Request permission to generate one.');
@@ -354,12 +376,12 @@ const deleteFCMToken = async () => {
 };
 
 const items = [
-    { id: 'feeding', max: 180 },
-    { id: 'diaper', max: 240 },
-    { id: 'sleep', max: 1440 },
-    { id: 'temperature', max: 180 },
-    { id: 'burping', max: 180 },
-    { id: 'contact', max: 1440 }
+    { id: 'feeding', max: 180, name: 'Кормление' },
+    { id: 'diaper', max: 240, name: 'Подгузник' },
+    { id: 'sleep', max: 1440, name: 'Сон' },
+    { id: 'temperature', max: 180, name: 'Температура' },
+    { id: 'burping', max: 180, name: 'Отрыжка' },
+    { id: 'contact', max: 1440, name: 'Контакт' }
 ];
 
 const timestamps = {};
@@ -375,28 +397,19 @@ function formatTime(minutes) {
 // Функция для отправки серверного уведомления через FCM
 async function sendFCMPushNotification(itemId, itemName) {
     try {
-        // Отправляем запрос на сервер для отправки пуш-уведомления
-        // В реальном приложении здесь должен быть вызов вашего серверного API
-        console.log(`Sending FCM push notification for ${itemId}: ${itemName}`);
-        
-        // Вместо реального вызова к серверу, мы просто логируем
-        // В реальном приложении используйте fetch или axios для вызова вашего сервера
-        // который отправит уведомление через FCM
-        /*
-        await fetch('https://your-server.com/send-notification', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                itemId,
-                itemName,
-                message: `Пора ${itemName}!`
-            })
+        // Сохраняем информацию о необходимости отправить уведомление
+        // Серверная часть будет отслеживать эти записи и отправлять уведомления
+        await set(ref(db, 'pendingNotifications/' + Date.now()), {
+            itemId,
+            itemName,
+            message: `Пора ${itemName}!`,
+            timestamp: Date.now(),
+            status: 'pending'
         });
-        */
+        
+        console.log(`Notification queued for ${itemId}: ${itemName}`);
     } catch (error) {
-        console.error('Error sending FCM push notification:', error);
+        console.error('Error queuing notification:', error);
     }
 }
 
@@ -414,8 +427,9 @@ function updateTime(id, maxMinutes, timestamp) {
         if (minutesAgo > maxMinutes) {
             item.classList.add('overdue');
             if (!wasOverdue && !notifiedState[id] && notificationsEnabled) {
-                const itemName = item.querySelector('.title')?.textContent.trim() || id;
-                // Вместо браузерного уведомления отправляем серверное через FCM
+                const itemConfig = items.find(i => i.id === id);
+                const itemName = itemConfig?.name || id;
+                // Отправляем серверное уведомление через FCM
                 sendFCMPushNotification(id, itemName);
                 notifiedState[id] = true;
             }
@@ -428,8 +442,9 @@ function updateTime(id, maxMinutes, timestamp) {
         item.classList.add('overdue');
         item.classList.remove('done');
         if (!wasOverdue && !notifiedState[id] && notificationsEnabled) {
-            const itemName = item.querySelector('.title')?.textContent.trim() || id;
-            // Вместо браузерного уведомления отправляем серверное через FCM
+            const itemConfig = items.find(i => i.id === id);
+            const itemName = itemConfig?.name || id;
+            // Отправляем серверное уведомление через FCM
             sendFCMPushNotification(id, itemName);
             notifiedState[id] = true;
         }
@@ -478,8 +493,7 @@ function immediateOverdueCheck() {
         const el = document.getElementById(it.id);
         if (!el) return;
         if (el.classList.contains('overdue') && !notifiedState[it.id] && notificationsEnabled) {
-            const itemName = el.querySelector('.title')?.textContent.trim() || it.id;
-            sendFCMPushNotification(it.id, itemName);
+            sendFCMPushNotification(it.id, it.name);
             notifiedState[it.id] = true;
         }
     });
