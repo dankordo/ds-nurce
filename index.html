@@ -92,7 +92,7 @@ h1 { text-align: center; color: var(--text-color); }
     color: var(--text-color);
 }
 
-.description, .last-time {
+.description, .last-time, .daily-count {
     font-size: 14px;
     color: var(--text-color);
     margin: 5px 0;
@@ -194,6 +194,7 @@ button:hover { background-color: var(--button-hover-bg); }
         <p class="title">Кормление</p>
         <p class="description">каждые 2-3 часа днём и ночью</p>
         <p class="last-time">Последний раз: никогда</p>
+        <p class="daily-count">Всего за день: 0</p>
     </div>
     <button onclick="markDone('feeding', 180)">Сделано сейчас</button>
 </div>
@@ -204,6 +205,7 @@ button:hover { background-color: var(--button-hover-bg); }
         <p class="title">Подгузник</p>
         <p class="description">каждые 2-4 часа</p>
         <p class="last-time">Последний раз: никогда</p>
+        <p class="daily-count">Всего за день: 0</p>
     </div>
     <button onclick="markDone('diaper', 240)">Сделано сейчас</button>
 </div>
@@ -214,6 +216,7 @@ button:hover { background-color: var(--button-hover-bg); }
         <p class="title">Сон</p>
         <p class="description">в среднем 14-17 часов в сутки</p>
         <p class="last-time">Последний раз: никогда</p>
+        <p class="daily-count">Всего за день: 0</p>
     </div>
     <button onclick="markDone('sleep', 1440)">Сделано сейчас</button>
 </div>
@@ -224,6 +227,7 @@ button:hover { background-color: var(--button-hover-bg); }
         <p class="title">Температура</p>
         <p class="description">каждые 2-3 часа</p>
         <p class="last-time">Последний раз: никогда</p>
+        <p class="daily-count">Всего за день: 0</p>
     </div>
     <button onclick="markDone('temperature', 180)">Сделано сейчас</button>
 </div>
@@ -290,6 +294,51 @@ function getYearWord(years) {
 
 // Обновляем заголовок с возрастом
 document.getElementById('age-title').textContent = calculateAge();
+
+// Функция для получения начала текущего дня (00:00)
+function getStartOfDay() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+}
+
+// Функция для получения начала следующего дня (00:00 следующего дня)
+function getStartOfNextDay() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+}
+
+// Функция для проверки, нужно ли сбросить счетчики за день
+function checkDayReset() {
+    const now = Date.now();
+    const lastReset = localStorage.getItem('lastReset') || 0;
+    const startOfNextDay = getStartOfNextDay();
+    
+    if (now >= startOfNextDay && now - lastReset > 60000) { // Защита от частых сбросов
+        localStorage.setItem('lastReset', now);
+        
+        // Сбрасываем счетчики для всех элементов
+        items.forEach(item => {
+            localStorage.setItem(`dailyCount_${item.id}`, '0');
+            updateDailyCount(item.id);
+        });
+        
+        console.log('Daily counters reset');
+    }
+}
+
+// Функция для обновления отображения счетчика за день
+function updateDailyCount(id) {
+    const count = parseInt(localStorage.getItem(`dailyCount_${id}`) || '0');
+    const dailyCountElem = document.getElementById(id).querySelector('.daily-count');
+    dailyCountElem.textContent = `Всего за день: ${count}`;
+}
+
+// Функция для увеличения счетчика за день
+function incrementDailyCount(id) {
+    const count = parseInt(localStorage.getItem(`dailyCount_${id}`) || '0');
+    localStorage.setItem(`dailyCount_${item.id}`, (count + 1).toString());
+    updateDailyCount(id);
+}
 
 // Функция для регистрации сервис-воркера
 async function registerServiceWorker() {
@@ -479,6 +528,13 @@ function updateTime(id, maxMinutes, timestamp) {
 
 window.markDone = function(id, maxMinutes) {
     const now = Date.now();
+    
+    // Увеличиваем счетчик за день
+    const count = parseInt(localStorage.getItem(`dailyCount_${id}`) || '0');
+    localStorage.setItem(`dailyCount_${id}`, (count + 1).toString());
+    updateDailyCount(id);
+    
+    // Сохраняем в Firebase
     set(ref(db, 'actions/' + id), { timestamp: now })
         .catch(err => {
             console.error(err);
@@ -536,7 +592,18 @@ items.forEach(item => {
         console.error(err);
         errorMessage.textContent = `Ошибка чтения: ${err.message}`;
     });
+    
+    // Инициализация счетчика за день
+    updateDailyCount(item.id);
 });
+
+// Проверяем сброс счетчиков каждую минуту
+setInterval(() => {
+    checkDayReset();
+}, 60000);
+
+// Первоначальная проверка сброса
+checkDayReset();
 
 setInterval(() => {
     items.forEach(item => {
