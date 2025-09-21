@@ -183,7 +183,7 @@ button:hover { background-color: var(--button-hover-bg); }
     </label>
 </div>
 
-<h1>Потребности новорождённого — приоритет и частота</h1>
+<h1 id="age-title">Матюше ...</h1>
 <a id="events-link" href="events.html">Список важных событий</a>
 
 <div id="error-message"></div>
@@ -228,26 +228,6 @@ button:hover { background-color: var(--button-hover-bg); }
     <button onclick="markDone('temperature', 180)">Сделано сейчас</button>
 </div>
 
-<div class="item" id="burping">
-    <span class="icon">😊</span>
-    <div class="content">
-        <p class="title">Отрыжка</p>
-        <p class="description">после каждого кормления</p>
-        <p class="last-time">Последний раз: никогда</p>
-    </div>
-    <button onclick="markDone('burping', 180)">Сделано сейчас</button>
-</div>
-
-<div class="item" id="contact">
-    <span class="icon">✋</span>
-    <div class="content">
-        <p class="title">Контакт</p>
-        <p class="description">каждый день, многократно</p>
-        <p class="last-time">Последний раз: никогда</p>
-    </div>
-    <button onclick="markDone('contact', 1440)">Сделано сейчас</button>
-</div>
-
 <div id="notifications-control" aria-label="Переключатель уведомлений">
     <span class="toggle-label">Уведомления</span>
     <label class="toggle">
@@ -276,6 +256,40 @@ const app = initializeApp({
 
 const db = getDatabase(app);
 let messaging = null;
+
+// Функция для расчета возраста
+function calculateAge() {
+    const birthDate = new Date(2025, 8, 16, 10, 3); // 16 сентября 2025, 10:03
+    const now = new Date();
+    
+    const diff = now - birthDate;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const years = Math.floor(days / 365);
+    const remainingDays = days % 365;
+    
+    if (years === 0) {
+        return `Матюше ${days} ${getDayWord(days)}`;
+    } else {
+        return `Матюше ${years} ${getYearWord(years)} и ${remainingDays} ${getDayWord(remainingDays)}`;
+    }
+}
+
+// Функция для правильного склонения слова "день"
+function getDayWord(days) {
+    if (days % 10 === 1 && days % 100 !== 11) return 'день';
+    if (days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 10 || days % 100 >= 20)) return 'дня';
+    return 'дней';
+}
+
+// Функция для правильного склонения слова "год"
+function getYearWord(years) {
+    if (years % 10 === 1 && years % 100 !== 11) return 'год';
+    if (years % 10 >= 2 && years % 10 <= 4 && (years % 100 < 10 || years % 100 >= 20)) return 'года';
+    return 'лет';
+}
+
+// Обновляем заголовок с возрастом
+document.getElementById('age-title').textContent = calculateAge();
 
 // Функция для регистрации сервис-воркера
 async function registerServiceWorker() {
@@ -394,9 +408,7 @@ const items = [
     { id: 'feeding', max: 180, name: 'Кормление' },
     { id: 'diaper', max: 240, name: 'Подгузник' },
     { id: 'sleep', max: 1440, name: 'Сон' },
-    { id: 'temperature', max: 180, name: 'Температура' },
-    { id: 'burping', max: 180, name: 'Отрыжка' },
-    { id: 'contact', max: 1440, name: 'Контакт' }
+    { id: 'temperature', max: 180, name: 'Температура' }
 ];
 
 const timestamps = {};
